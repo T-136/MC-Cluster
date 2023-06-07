@@ -1,0 +1,25 @@
+[package]
+name = "mc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.70"
+chemfiles = "0.10.3"
+clap = { version = "4.2.1", features = ["derive"] }
+fnv = "1.0.7"
+nohash-hasher = "0.2.0"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+rand_distr = "0.4.3"
+serde = { version = "1.0.160", features = ["derive"] }
+serde_json = "1.0.96"
+term-table = "1.3.2"
+threadpool = "1.8.1"
+time-graph = {version="0.3.0", features= ["table"]}
+vasp-poscar = "0.3.2"
+
+[profile.release]
+debug = false
