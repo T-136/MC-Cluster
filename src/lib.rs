@@ -4,7 +4,7 @@ use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand_chacha::ChaCha20Rng;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
@@ -107,7 +107,7 @@ pub struct Simulation {
     cn_dict_sections: Vec<HashMap<u8, f64>>,
     energy_sections_list: Vec<f64>,
     optimization_cut_off_perc: f64,
-    unique_levels: HashMap<i64, (HashMap<u8, u32>, u64)>,
+    unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
 }
 
 impl Simulation {
@@ -337,17 +337,8 @@ impl Simulation {
 
             if self.is_acceptance_criteria_fulfilled(total_temp_energy, &mut rng_e_number, iiter) {
                 self.accept_move(total_temp_energy, move_from, move_to);
-
-                // if last_3000_cn_changes.len() >= 3000 {
-                //     last_3000_cn_changes.pop_front();
-                // };
-                // last_3000_cn_changes.push_back(cn_changed);
             } else {
                 self.perform_move(move_to, move_from);
-                // if last_3000_cn_changes.len() >= 3000 {
-                //     last_3000_cn_changes.pop_front();
-                // };
-                // last_3000_cn_changes.push_back(0);
             }
 
             if iiter >= self.niter / 2 {
@@ -394,9 +385,6 @@ impl Simulation {
         const SECTION_SIZE: u64 = 100000;
         temp_energy_section_1000 += self.total_energy_1000;
 
-        // for (i, v) in temp_cn_dict_section.iter_mut().enumerate() {
-        //     *v += self.cn_dict[i];
-        // }
         temp_cn_dict_section
             .iter_mut()
             .enumerate()
@@ -407,11 +395,12 @@ impl Simulation {
             cn_hash_map.insert((i as u8) + 1, v);
         }
 
-        if *iiter as f64 >= self.niter as f64 * (1. - self.optimization_cut_off_perc) {
+        if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+            let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
             self.unique_levels
-                .entry(self.total_energy_1000)
+                .entry(cn_btree)
                 .and_modify(|(_, x)| *x += 1)
-                .or_insert((cn_hash_map, 0));
+                .or_insert((self.total_energy_1000, 0));
         }
         if (iiter + 1) % SECTION_SIZE == 0 {
             self.energy_sections_list
