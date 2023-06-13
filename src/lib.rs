@@ -250,7 +250,7 @@ impl Simulation {
         }
     }
 
-    pub fn run(&mut self) -> Results {
+    pub fn run(&mut self, unique_levels: bool) -> Results {
         let mut rng_choose = ChaCha20Rng::from_entropy();
         let choose_seed: [u8; 32] = rng_choose.get_seed();
 
@@ -355,8 +355,12 @@ impl Simulation {
                 &mut trajectory,
                 &mut trajectory_last_frames,
             );
-            temp_energy_section =
-                self.save_sections(&iiter, temp_energy_section, &mut temp_cn_dict_section);
+            temp_energy_section = self.save_sections(
+                &iiter,
+                temp_energy_section,
+                &mut temp_cn_dict_section,
+                &unique_levels,
+            );
         }
 
         Results {
@@ -381,6 +385,7 @@ impl Simulation {
         iiter: &u64,
         mut temp_energy_section_1000: i64,
         temp_cn_dict_section: &mut [u32; 13],
+        unique_levels: &bool,
     ) -> i64 {
         const SECTION_SIZE: u64 = 100000;
         temp_energy_section_1000 += self.total_energy_1000;
@@ -395,12 +400,14 @@ impl Simulation {
             cn_hash_map.insert((i as u8) + 1, v);
         }
 
-        if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
-            let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
-            self.unique_levels
-                .entry(cn_btree)
-                .and_modify(|(_, x)| *x += 1)
-                .or_insert((self.total_energy_1000, 0));
+        if *unique_levels {
+            if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+                let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
+                self.unique_levels
+                    .entry(cn_btree)
+                    .and_modify(|(_, x)| *x += 1)
+                    .or_insert((self.total_energy_1000, 0));
+            }
         }
         if (iiter + 1) % SECTION_SIZE == 0 {
             self.energy_sections_list
@@ -498,7 +505,7 @@ impl Simulation {
     // return current_temp
 
     fn calculate_current_temp(&self, iiter: u64) -> f64 {
-        let heating_temp = 5500.;
+        let heating_temp = 6000.;
         let cut_off = self.optimization_cut_off_perc;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off {

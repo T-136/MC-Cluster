@@ -44,6 +44,9 @@ struct Args {
 
     #[arg(short, long, default_value_t = 0.50)]
     optimization_cut_off_perc: f64,
+
+    #[arg(short, long, default_value_t = true)]
+    unique_levels: bool,
 }
 
 fn file_paths(grid_folder: String) -> (String, String, String, String) {
@@ -65,6 +68,7 @@ fn main() {
     let start_temperature: Option<f64> = args.begin_temperature;
     let nsites: u32 = 15 * 15 * 15 * 4;
     let atoms_input = args.atoms_input;
+    let unique_levels = args.unique_levels;
     if !std::path::Path::new(&save_folder).exists() {
         fs::create_dir_all(&save_folder).unwrap();
     }
@@ -112,7 +116,7 @@ fn main() {
                 rep,
                 optimization_cut_off_perc,
             );
-            let exp = sim.run();
+            let exp = sim.run(unique_levels);
             sim.write_exp_file(&exp);
         }));
     }
