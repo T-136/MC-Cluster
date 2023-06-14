@@ -470,13 +470,13 @@ impl Simulation {
     ) {
         // let mut xyz: Vec<[f64; 3]> = Vec::new();
         if let Some(trajectory_last_frames) = trajectory_last_frames_option {
-            if iiter % self.last_frames_trajectory.unwrap() == 0 {
+            if self.niter - iiter <= self.last_frames_trajectory.unwrap() {
                 self.write_traj(trajectory_last_frames);
             }
         }
         // let mut xyz: Vec<[f64; 3]> = Vec::new();
         if let Some(trajectory) = trajectory_option {
-            if self.niter - iiter > self.trajectory_frequency.unwrap() && iiter % 100 == 0 {
+            if self.niter - iiter > self.trajectory_frequency.unwrap_or(0) && iiter % 100 == 0 {
                 self.write_traj(trajectory);
             }
         }
