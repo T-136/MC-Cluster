@@ -303,7 +303,7 @@ impl Simulation {
 
         let mut start_cn_dict = HashMap::new();
 
-        for (k, v) in self.cn_dict.iter().enumerate().skip(1) {
+        for (k, v) in self.cn_dict.iter().enumerate() {
             start_cn_dict.insert(k as u8, *v);
         }
 
@@ -341,7 +341,7 @@ impl Simulation {
                 self.perform_move(move_to, move_from);
             }
 
-            if iiter >= self.niter / 2 {
+            if iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
                 self.save_lowest_energy(
                     &iiter,
                     &mut lowest_energy_struct,
@@ -396,8 +396,8 @@ impl Simulation {
             .for_each(|(i, v)| *v += self.cn_dict[i]);
 
         let mut cn_hash_map = HashMap::new();
-        for (i, v) in self.cn_dict.into_iter().skip(1).enumerate() {
-            cn_hash_map.insert((i as u8) + 1, v);
+        for (i, v) in self.cn_dict.into_iter().enumerate() {
+            cn_hash_map.insert(i as u8, v);
         }
 
         if *unique_levels {
@@ -449,8 +449,8 @@ impl Simulation {
             lowest_energy_struct.iiter = iiter.clone();
 
             let mut cn_hash_map: HashMap<u8, u32> = HashMap::new();
-            for (i, v) in self.cn_dict.into_iter().skip(1).enumerate() {
-                cn_hash_map.insert((i as u8) + 1, v);
+            for (i, v) in self.cn_dict.into_iter().enumerate() {
+                cn_hash_map.insert(i as u8, v);
             }
             lowest_energy_struct.cn_total = cn_hash_map;
 

@@ -1,4 +1,3 @@
-use clap::ArgAction;
 use clap::Parser;
 use mc::Simulation;
 use std::fs;
@@ -46,7 +45,7 @@ struct Args {
     #[arg(short, long, default_value_t = 0.50)]
     optimization_cut_off_perc: f64,
 
-    #[arg(short, long, action = ArgAction::SetFalse)]
+    #[arg(short, long, action)]
     unique_levels: bool,
 }
 
