@@ -45,8 +45,8 @@ struct Args {
     #[arg(short, long, default_value_t = 0.50)]
     optimization_cut_off_perc: f64,
 
-    #[arg(short, long, action)]
-    unique_levels: bool,
+    #[arg(short, long, allow_hyphen_values = true)]
+    unique_levels: i32,
 }
 
 fn file_paths(grid_folder: String) -> (String, String, String, String) {

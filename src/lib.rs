@@ -8,7 +8,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::{cmp, fs};
+use std::{cmp, eprint, fs, println};
 use vasp_poscar::Poscar;
 
 mod listdict;
@@ -250,7 +250,7 @@ impl Simulation {
         }
     }
 
-    pub fn run(&mut self, unique_levels: bool) -> Results {
+    pub fn run(&mut self, mut amount_unique_levels: i32) -> Results {
         let mut rng_choose = ChaCha20Rng::from_entropy();
         let choose_seed: [u8; 32] = rng_choose.get_seed();
 
@@ -359,7 +359,7 @@ impl Simulation {
                 &iiter,
                 temp_energy_section,
                 &mut temp_cn_dict_section,
-                &unique_levels,
+                &mut amount_unique_levels,
             );
         }
 
@@ -385,7 +385,7 @@ impl Simulation {
         iiter: &u64,
         mut temp_energy_section_1000: i64,
         temp_cn_dict_section: &mut [u32; 13],
-        unique_levels: &bool,
+        amount_unique_levels: &mut i32,
     ) -> i64 {
         const SECTION_SIZE: u64 = 100000;
         temp_energy_section_1000 += self.total_energy_1000;
@@ -400,13 +400,32 @@ impl Simulation {
             cn_hash_map.insert(i as u8, v);
         }
 
-        if *unique_levels {
+        if *amount_unique_levels != 0 {
             if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
                 let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
-                self.unique_levels
-                    .entry(cn_btree)
-                    .and_modify(|(_, x)| *x += 1)
-                    .or_insert((self.total_energy_1000, 0));
+                match self.unique_levels.entry(cn_btree) {
+                    std::collections::hash_map::Entry::Occupied(mut entry) => {
+                        let (_, x) = entry.get_mut();
+                        *x += 1;
+                    }
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        if *amount_unique_levels == 1 {
+                            eprint!("amount_unique_levels reached");
+                        }
+                        *amount_unique_levels -= 1;
+                        entry.insert((self.total_energy_1000 / 1000, 1));
+                    }
+                }
+                // self.unique_levels
+                //     .entry(cn_btree)
+                //     .and_modify(|(_, x)| *x += 1)
+                //     .or_insert_with(|| {
+                //         if *amount_unique_levels == 1 {
+                //             eprint!("amount_unique_levels reached");
+                //         }
+                //         *amount_unique_levels -= 1;
+                //         (self.total_energy_1000 / 1000, 1)
+                //     });
             }
         }
         if (iiter + 1) % SECTION_SIZE == 0 {
