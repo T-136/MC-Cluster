@@ -611,9 +611,6 @@ impl Simulation {
         self.occ[move_to as usize] = self.occ[move_from as usize]; // covers different alloys also
         self.occ[move_from as usize] = 0;
 
-        self.onlyocc.remove(&move_from);
-        self.onlyocc.insert(move_to);
-
         let mut cn_change: i32 = 0;
 
         self.cn_dict[self.cn[move_from as usize]] -= 1;
@@ -640,6 +637,9 @@ impl Simulation {
     }
 
     fn accept_move(&mut self, total_temp_energy: i64, move_from: u32, move_to: u32) {
+        self.onlyocc.remove(&move_from);
+        self.onlyocc.insert(move_to);
+
         let lower_position = cmp::min(&move_from, &move_to).clone();
         let higher_position = cmp::max(&move_from, &move_to).clone();
         for o in &self.nn_pair[&(lower_position as u64 + ((higher_position as u64) << 32))] {
