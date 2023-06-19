@@ -396,12 +396,12 @@ impl Simulation {
             .enumerate()
             .for_each(|(i, v)| *v += self.cn_dict[i]);
 
-        let mut cn_hash_map = HashMap::new();
-        for (i, v) in self.cn_dict.into_iter().enumerate() {
-            cn_hash_map.insert(i as u8, v);
-        }
-
         if *amount_unique_levels != 0 {
+            let mut cn_hash_map = HashMap::new();
+            for (i, v) in self.cn_dict.into_iter().enumerate() {
+                cn_hash_map.insert(i as u8, v);
+            }
+
             if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
                 let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
                 match self.unique_levels.entry(cn_btree) {
