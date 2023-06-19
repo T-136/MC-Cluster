@@ -57,7 +57,7 @@ pub fn read_nn(pairlist_file: &str) -> HashMap<u32, [u32; 12], FnvBuildHasher> {
 
     let lines = io::BufReader::new(pairlist);
     let mut nn: HashMap<u32, [u32; 12], FnvBuildHasher> =
-        HashMap::with_capacity_and_hasher(5400, Default::default());
+        FnvHashMap::with_capacity_and_hasher(5400, Default::default());
 
     for line in lines.lines() {
         let r = line.unwrap();

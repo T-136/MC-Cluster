@@ -89,7 +89,7 @@ pub struct Simulation {
     occ: Vec<u8>,
     onlyocc: HashSet<u32>,
     cn: Vec<usize>,
-    former_energy_dict: HashMap<u32, i64>,
+    former_energy_dict: HashMap<u32, i64, fnv::FnvBuildHasher>,
     possible_moves: listdict::ListDict,
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; 12], fnv::FnvBuildHasher>,
@@ -176,7 +176,8 @@ impl Simulation {
                 cn_dict[cn[o as usize] as usize] += 1;
             };
         }
-        let mut former_energy_dict: HashMap<u32, i64> = HashMap::with_capacity(nsites as usize);
+        let mut former_energy_dict: fnv::FnvHashMap<u32, i64> =
+            fnv::FnvHashMap::with_capacity_and_hasher(nsites as usize, Default::default());
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new();
         for o in onlyocc.iter() {
