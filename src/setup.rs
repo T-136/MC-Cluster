@@ -6,7 +6,7 @@ pub fn create_input_cluster(
     xsites_positions: &Vec<[f64; 3]>,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     nsites: u32,
-) -> (Vec<u8>, HashSet<u32>) {
+) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>) {
     let center_of_mass: [f64; 3] = {
         let mut d: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         for coord in xsites_positions {
@@ -40,7 +40,8 @@ pub fn create_input_cluster(
         center_of_mass, iclose, xsites_positions[iclose as usize]
     );
     let mut occ: Vec<u8> = Vec::with_capacity(xsites_positions.len());
-    let mut onlyocc: HashSet<u32> = HashSet::with_capacity(*number_of_atoms as usize);
+    let mut onlyocc: HashSet<u32, FnvBuildHasher> =
+        fnv::FnvHashSet::with_capacity_and_hasher(*number_of_atoms as usize, Default::default());
 
     for _ in 0..nsites {
         occ.push(0);
@@ -111,12 +112,13 @@ pub fn occ_onlyocc_from_xyz(
     xyz: &Vec<[f64; 3]>,
     nsites: u32,
     xsites_positions: &Vec<[f64; 3]>,
-) -> (Vec<u8>, HashSet<u32>) {
+) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>) {
     let mut occ: Vec<u8> = Vec::with_capacity(nsites as usize);
     for _ in 0..nsites {
         occ.push(0 as u8);
     }
-    let mut onlyocc: HashSet<u32> = HashSet::with_capacity(xyz.len());
+    let mut onlyocc: HashSet<u32, FnvBuildHasher> =
+        fnv::FnvHashSet::with_capacity_and_hasher(xyz.len(), Default::default());
 
     for x in xyz.iter() {
         for site in 0..nsites {

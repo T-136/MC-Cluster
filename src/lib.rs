@@ -87,7 +87,7 @@ pub struct Simulation {
     niter: u64,
     number_all_atoms: u32,
     occ: Vec<u8>,
-    onlyocc: HashSet<u32>,
+    onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     cn: Vec<usize>,
     former_energy_dict: HashMap<u32, i64, fnv::FnvBuildHasher>,
     possible_moves: listdict::ListDict,
