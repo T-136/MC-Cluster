@@ -607,38 +607,50 @@ impl Simulation {
         *total_temp_energy -= self.former_energy_dict[&move_from];
     }
 
-    fn perform_move(&mut self, move_from: u32, move_to: u32) -> u8 {
+    fn perform_move(&mut self, move_from: u32, move_to: u32) {
         self.occ[move_to as usize] = self.occ[move_from as usize]; // covers different alloys also
         self.occ[move_from as usize] = 0;
 
-        let mut cn_change: i32 = 0;
-
-        self.cn_dict[self.cn[move_from as usize]] -= 1;
-        for o in &self.nn[&move_from] {
-            if self.occ[*o as usize] == 1 && o != &move_to {
-                self.cn_dict[self.cn[*o as usize]] -= 1;
-                self.cn_dict[self.cn[*o as usize] - 1] += 1;
-                cn_change -= 1;
-            }
-            self.cn[*o as usize] -= 1;
+        // self.cn_dict[self.cn[move_from as usize]] -= 1;
+        for o in self.nn[&move_from] {
+            // if self.occ[*o as usize] == 1 && o != &move_to {
+            // self.cn_dict[self.cn[*o as usize]] -= 1;
+            // self.cn_dict[self.cn[*o as usize] - 1] += 1;
+            // cn_change -= 1;
+            // }
+            self.cn[o as usize] -= 1;
         }
-        for o in &self.nn[&move_to] {
-            if self.occ[*o as usize] == 1 && o != &move_from {
-                self.cn_dict[self.cn[*o as usize] as usize] -= 1;
-                self.cn_dict[(self.cn[*o as usize] + 1) as usize] += 1;
-                cn_change += 1
-            }
-            self.cn[*o as usize] += 1;
+        for o in self.nn[&move_to] {
+            // if self.occ[*o as usize] == 1 && o != &move_from {
+            // self.cn_dict[self.cn[*o as usize] as usize] -= 1;
+            // self.cn_dict[(self.cn[*o as usize] + 1) as usize] += 1;
+            //     cn_change += 1
+            // }
+            self.cn[o as usize] += 1;
         }
-
-        self.cn_dict[self.cn[move_to as usize]] += 1;
-
-        cn_change.unsigned_abs() as u8
+        // self.cn_dict[self.cn[move_to as usize]] += 1;
     }
 
     fn accept_move(&mut self, total_temp_energy: i64, move_from: u32, move_to: u32) {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
+
+        //-1 because the cn of move_from was cahnged in perform_move
+        self.cn_dict[self.cn[move_from as usize] - 1] -= 1;
+        for o in &self.nn[&move_from] {
+            if self.occ[*o as usize] == 1 && o != &move_to {
+                //remember cn[o] allready changed in perform_move
+                self.cn_dict[self.cn[*o as usize] + 1] -= 1;
+                self.cn_dict[self.cn[*o as usize]] += 1;
+            }
+        }
+        for o in &self.nn[&move_to] {
+            if self.occ[*o as usize] == 1 && o != &move_from {
+                self.cn_dict[self.cn[*o as usize - 1] as usize] -= 1;
+                self.cn_dict[(self.cn[*o as usize]) as usize] += 1;
+            }
+        }
+        self.cn_dict[self.cn[move_to as usize]] += 1;
 
         let lower_position = cmp::min(&move_from, &move_to).clone();
         let higher_position = cmp::max(&move_from, &move_to).clone();
