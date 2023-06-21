@@ -646,8 +646,8 @@ impl Simulation {
         }
         for o in &self.nn[&move_to] {
             if self.occ[*o as usize] == 1 && o != &move_from {
-                self.cn_dict[self.cn[*o as usize - 1] as usize] -= 1;
-                self.cn_dict[(self.cn[*o as usize]) as usize] += 1;
+                self.cn_dict[self.cn[*o as usize] - 1] -= 1;
+                self.cn_dict[self.cn[*o as usize]] += 1;
             }
         }
         self.cn_dict[self.cn[move_to as usize]] += 1;
