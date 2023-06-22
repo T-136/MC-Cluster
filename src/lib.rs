@@ -635,19 +635,28 @@ impl Simulation {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
+        let nn_intersection: Vec<u32> = self.nn[&move_from]
+            .into_iter()
+            .filter(|x| self.nn[&move_to].contains(x))
+            .collect();
+
         //-1 because the cn of move_from was cahnged in perform_move
         self.cn_dict[self.cn[move_from as usize] - 1] -= 1;
         for o in &self.nn[&move_from] {
-            if self.occ[*o as usize] == 1 && o != &move_to {
-                //remember cn[o] allready changed in perform_move
-                self.cn_dict[self.cn[*o as usize] + 1] -= 1;
-                self.cn_dict[self.cn[*o as usize]] += 1;
+            if !nn_intersection.contains(o) {
+                if self.occ[*o as usize] == 1 && o != &move_to {
+                    //remember cn[o] allready changed in perform_move
+                    self.cn_dict[self.cn[*o as usize] + 1] -= 1;
+                    self.cn_dict[self.cn[*o as usize]] += 1;
+                }
             }
         }
         for o in &self.nn[&move_to] {
-            if self.occ[*o as usize] == 1 && o != &move_from {
-                self.cn_dict[self.cn[*o as usize] - 1] -= 1;
-                self.cn_dict[self.cn[*o as usize]] += 1;
+            if !nn_intersection.contains(o) {
+                if self.occ[*o as usize] == 1 && o != &move_from {
+                    self.cn_dict[self.cn[*o as usize] - 1] -= 1;
+                    self.cn_dict[self.cn[*o as usize]] += 1;
+                }
             }
         }
         self.cn_dict[self.cn[move_to as usize]] += 1;
