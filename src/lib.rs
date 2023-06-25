@@ -18,70 +18,6 @@ mod sim;
 
 pub use sim::Results;
 
-pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> {
-    // let mut folder_with_lowest_e: PathBuf = PathBuf::new();
-    let mut lowest_e: f64 = f64::INFINITY;
-
-    for _ in 0..2 {
-        let paths = fs::read_dir(&folder).unwrap();
-        for path in paths {
-            let ok_path = match path {
-                Ok(ok_path) => ok_path,
-                Err(e) => {
-                    eprintln!("{:?}", e);
-                    continue;
-                }
-            };
-
-            if !ok_path.path().is_dir() {
-                continue;
-            }
-            let folder = fs::read_dir(ok_path.path().as_path())?;
-            for folder_entry in folder {
-                let file = match folder_entry {
-                    Ok(path2) => {
-                        if !path2.path().is_dir() {
-                            path2
-                        } else {
-                            println!("unexpected folder");
-                            continue;
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("{:?}", e);
-                        continue;
-                    }
-                };
-                if !file.path().to_str().unwrap().ends_with(".json") {
-                    continue;
-                }
-
-                let file = fs::File::open(file.path()).unwrap();
-                let reader = BufReader::new(file);
-                let res: Result<Results, serde_json::Error> = serde_json::from_reader(reader);
-                match res {
-                    Ok(res) => {
-                        if res.lowest_energy_struct.energy <= lowest_e {
-                            // folder_with_lowest_e = path2.path();
-                            lowest_e = res.lowest_energy_struct.energy;
-                        } else {
-                            println!("{:?}", res.lowest_energy_struct.energy);
-                            println!("{:?}", ok_path.path())
-                            // fs::remove_dir_all(ok_path.path())?;
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("{:?}", format!("{:?} in folder {:?}", e, ok_path.path()));
-                        // fs::remove_dir_all(ok_path.path())?;
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(())
-}
-
 #[derive(Clone)]
 pub struct Simulation {
     niter: u64,
@@ -496,7 +432,7 @@ impl Simulation {
         }
         // let mut xyz: Vec<[f64; 3]> = Vec::new();
         if let Some(trajectory) = trajectory_option {
-            if self.niter - iiter > self.trajectory_frequency.unwrap_or(0) && iiter % 100 == 0 {
+            if self.niter - iiter > self.last_frames_trajectory.unwrap_or(0) && iiter % 100 == 0 {
                 self.write_traj(trajectory);
             }
         }
@@ -517,15 +453,8 @@ impl Simulation {
         trajectory.write(&mut frame).unwrap();
     }
 
-    // if iiter+1 <= niter * 0.1 :
-    //     current_temp =  heating_temp-((iiter+1)/(niter*0.1))*(heating_temp - temp_start) # linear
-    //     return current_temp
-    // else:
-    //     current_temp =  temp_start-((iiter+1-niter*0.1)/(niter*0.9))*(temp_start - temp) # linear
-    // return current_temp
-
     fn calculate_current_temp(&self, iiter: u64) -> f64 {
-        let heating_temp = 6000.;
+        let heating_temp = 5500.;
         let cut_off = self.optimization_cut_off_perc;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off {
@@ -565,22 +494,6 @@ impl Simulation {
         let delta_energy = proposed_energy - self.total_energy_1000;
         let rand_value = between.sample(rng_e_number);
         (rand_value) < ((-delta_energy as f64 / 1000.) / (KB * acceptance_temp)).exp()
-        // } else {
-        //     if &proposed_energy < &self.total_energy {
-        //         return true;
-        //     }
-        //     let acceptance_temp = 5000.
-        //         - (iiter as f64 / self.niter as f64)
-        //             * (self.start_temperature.unwrap() - self.temperature);
-        //     let between = Uniform::new_inclusive(0., 1.);
-        //     let delta_energy = proposed_energy - self.total_energy;
-        //     let rand_value = between.sample(rng_e_number);
-        //     if (rand_value) < (-delta_energy / (KB * acceptance_temp)).exp() {
-        //         return true;
-        //     } else {
-        //         return false;
-        //     }
-        // }
     }
 
     pub fn temp_energy_calculation(
@@ -693,4 +606,68 @@ impl Simulation {
             }
         }
     }
+}
+
+pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> {
+    // let mut folder_with_lowest_e: PathBuf = PathBuf::new();
+    let mut lowest_e: f64 = f64::INFINITY;
+
+    for _ in 0..2 {
+        let paths = fs::read_dir(&folder).unwrap();
+        for path in paths {
+            let ok_path = match path {
+                Ok(ok_path) => ok_path,
+                Err(e) => {
+                    eprintln!("{:?}", e);
+                    continue;
+                }
+            };
+
+            if !ok_path.path().is_dir() {
+                continue;
+            }
+            let folder = fs::read_dir(ok_path.path().as_path())?;
+            for folder_entry in folder {
+                let file = match folder_entry {
+                    Ok(path2) => {
+                        if !path2.path().is_dir() {
+                            path2
+                        } else {
+                            println!("unexpected folder");
+                            continue;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{:?}", e);
+                        continue;
+                    }
+                };
+                if !file.path().to_str().unwrap().ends_with(".json") {
+                    continue;
+                }
+
+                let file = fs::File::open(file.path()).unwrap();
+                let reader = BufReader::new(file);
+                let res: Result<Results, serde_json::Error> = serde_json::from_reader(reader);
+                match res {
+                    Ok(res) => {
+                        if res.lowest_energy_struct.energy <= lowest_e {
+                            // folder_with_lowest_e = path2.path();
+                            lowest_e = res.lowest_energy_struct.energy;
+                        } else {
+                            println!("{:?}", res.lowest_energy_struct.energy);
+                            println!("{:?}", ok_path.path())
+                            // fs::remove_dir_all(ok_path.path())?;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("{:?}", format!("{:?} in folder {:?}", e, ok_path.path()));
+                        // fs::remove_dir_all(ok_path.path())?;
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
