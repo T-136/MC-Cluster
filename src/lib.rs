@@ -324,7 +324,7 @@ impl Simulation {
         temp_cn_dict_section: &mut [u32; 13],
         amount_unique_levels: &mut i32,
     ) -> i64 {
-        const SECTION_SIZE: u64 = 100000;
+        const SECTION_SIZE: u64 = 1000000;
         temp_energy_section_1000 += self.total_energy_1000;
 
         temp_cn_dict_section
@@ -420,17 +420,14 @@ impl Simulation {
     fn write_trajectorys(
         &self,
         iiter: &u64,
-        // xyz: &mut Vec<[f64; 3]>,
         trajectory_option: &mut Option<Trajectory>,
         trajectory_last_frames_option: &mut Option<Trajectory>,
     ) {
-        // let mut xyz: Vec<[f64; 3]> = Vec::new();
         if let Some(trajectory_last_frames) = trajectory_last_frames_option {
             if self.niter - iiter <= self.last_frames_trajectory.unwrap() {
                 self.write_traj(trajectory_last_frames);
             }
         }
-        // let mut xyz: Vec<[f64; 3]> = Vec::new();
         if let Some(trajectory) = trajectory_option {
             if self.niter - iiter > self.last_frames_trajectory.unwrap_or(0) && iiter % 100 == 0 {
                 self.write_traj(trajectory);

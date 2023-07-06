@@ -1,8 +1,23 @@
 use clap::Parser;
 use mc::Simulation;
 use std::fs;
+use std::panic;
 use std::thread;
 // use time_graph::enable_data_collection;
+
+fn fmt_scient(num: &str) -> u64 {
+    let mut parts = num.split(['e', 'E']);
+
+    let pre_num = parts.next().unwrap();
+    let exp = parts.next().unwrap_or(&"1");
+    if parts.next().is_some() {
+        panic!("wrong iterations input");
+    }
+
+    let base: u64 = 10;
+    pre_num.parse::<u64>().expect("wrong iterations input")
+        * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -18,8 +33,8 @@ struct Args {
     folder: String,
 
     /// iterations
-    #[arg(short, long, default_value_t = 50000)]
-    iterations: u64,
+    #[arg(short, long)]
+    iterations: String,
 
     #[arg(short, long, default_value_t = 300.)]
     temperature: f64,
@@ -79,7 +94,8 @@ fn main() {
     let (pairlist_file, nn_pairlist_file, nnn_pairlist_file, atom_sites) =
         file_paths(args.grid_folder);
 
-    let niter = args.iterations;
+    let niter_str = args.iterations;
+    let niter = fmt_scient(&niter_str);
     let trajectory_frequency: Option<u64> = args.write_trajectory_frequency;
     let last_frames_trajectory: Option<u64> = args.last_frames_trajectory;
     let bulk_file_name: String = args.core_file;
