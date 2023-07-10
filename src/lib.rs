@@ -11,12 +11,18 @@ use std::io::BufReader;
 use std::{cmp, eprint, fs, println};
 use vasp_poscar::Poscar;
 
+// mod build_pairs;
 mod listdict;
 mod read_files;
 mod setup;
 mod sim;
 
 pub use sim::Results;
+
+const CN: usize = 12;
+const NN_PAIR_NUMBER: usize = 20;
+
+const GRID_SIZE: [f64; 3] = [15., 15., 15.];
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -28,13 +34,13 @@ pub struct Simulation {
     former_energy_dict: HashMap<u32, i64, fnv::FnvBuildHasher>,
     possible_moves: listdict::ListDict,
     total_energy_1000: i64,
-    nn: HashMap<u32, [u32; 12], fnv::FnvBuildHasher>,
-    nn_pair: HashMap<u64, [u32; 20], fnv::FnvBuildHasher>,
+    nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
+    nn_pair: HashMap<u64, [u32; NN_PAIR_NUMBER], fnv::FnvBuildHasher>,
     // nnn_pair: HashMap<u64, [u32; 74], fnv::FnvBuildHasher>,
     // mut xyz: Vec<[f64; 3]>,
     xsites_positions: Vec<[f64; 3]>,
     unit_cell: UnitCell,
-    cn_dict: [u32; 13],
+    cn_dict: [u32; CN + 1],
     save_folder: String,
     trajectory_frequency: Option<u64>,
     last_frames_trajectory: Option<u64>,
@@ -78,11 +84,11 @@ impl Simulation {
         });
         let unit_cell_size = bulk.unscaled_lattice_vectors();
         let unit_cell = UnitCell::new([
-            unit_cell_size[0][0] * 15.,
-            unit_cell_size[1][1] * 15.,
-            unit_cell_size[2][2] * 15.,
+            unit_cell_size[0][0] * GRID_SIZE[0],
+            unit_cell_size[1][1] * GRID_SIZE[1],
+            unit_cell_size[2][2] * GRID_SIZE[2],
         ]);
-        let mut cn_dict: [u32; 13] = [0; 13];
+        let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
 
         let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
         let (occ, onlyocc, number_all_atoms) = if input_file.is_some() {
@@ -123,10 +129,9 @@ impl Simulation {
 
             for u in &nn[o] {
                 if occ[*u as usize] == 0 {
-                    // if possible_moves.contains(o.clone(), u.clone()) {
-                    //     continue;
-                    // }
-                    if cn[*o as usize] < 12 && cn[*u as usize] > 1 {
+                    // >1 so that atoms cant leave the cluster
+                    // <x cant move if all neighbors are occupied
+                    if cn[*o as usize] < CN && cn[*u as usize] > 1 {
                         possible_moves.add_item(o.clone(), u.clone())
                     }
                 }
@@ -230,7 +235,7 @@ impl Simulation {
             iiter: 0,
         };
         let mut temp_energy_section: i64 = 0;
-        let mut temp_cn_dict_section: [u32; 13] = [0; 13];
+        let mut temp_cn_dict_section: [u32; CN + 1] = [0; CN + 1];
 
         // for k in 1..13 {
         //     temp_cn_dict_section.insert(k, 0);
@@ -321,7 +326,7 @@ impl Simulation {
         &mut self,
         iiter: &u64,
         mut temp_energy_section_1000: i64,
-        temp_cn_dict_section: &mut [u32; 13],
+        temp_cn_dict_section: &mut [u32; CN + 1],
         amount_unique_levels: &mut i32,
     ) -> i64 {
         const SECTION_SIZE: u64 = 1000000;
@@ -381,7 +386,7 @@ impl Simulation {
                 // list.clear();
                 *list = 0;
             }
-            assert_eq!(temp_cn_dict_section, &mut [0_u32; 13]);
+            assert_eq!(temp_cn_dict_section, &mut [0_u32; CN + 1]);
             self.cn_dict_sections.push(section.clone())
         }
         temp_energy_section_1000

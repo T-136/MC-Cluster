@@ -50,19 +50,19 @@ pub fn read_atom_sites(input_file: &str, nsites: u32) -> Vec<[f64; 3]> {
     xsites_positions
 }
 
-pub fn read_nn(pairlist_file: &str) -> HashMap<u32, [u32; 12], FnvBuildHasher> {
+pub fn read_nn(pairlist_file: &str) -> HashMap<u32, [u32; super::CN], FnvBuildHasher> {
     println!("reading pairlists from: {}", pairlist_file);
 
     let pairlist = fs::File::open(pairlist_file).expect("Should have been able to read the file");
 
     let lines = io::BufReader::new(pairlist);
-    let mut nn: HashMap<u32, [u32; 12], FnvBuildHasher> =
+    let mut nn: HashMap<u32, [u32; super::CN], FnvBuildHasher> =
         FnvHashMap::with_capacity_and_hasher(5400, Default::default());
 
     for line in lines.lines() {
         let r = line.unwrap();
         let list: Vec<&str> = r.split_whitespace().clone().collect();
-        let mut neighbors: [u32; 12] = [0; 12];
+        let mut neighbors: [u32; super::CN] = [0; super::CN];
         let prime = list.first().clone();
         for (i, l) in list.iter().skip(1).enumerate() {
             neighbors[i] = l.parse::<u32>().unwrap()
@@ -73,13 +73,15 @@ pub fn read_nn(pairlist_file: &str) -> HashMap<u32, [u32; 12], FnvBuildHasher> {
     nn
 }
 
-pub fn read_nn_pairlists(nn_pairlist_file: &str) -> HashMap<u64, [u32; 20], FnvBuildHasher> {
+pub fn read_nn_pairlists(
+    nn_pairlist_file: &str,
+) -> HashMap<u64, [u32; super::NN_PAIR_NUMBER], FnvBuildHasher> {
     let nn_pairlist =
         fs::File::open(nn_pairlist_file).expect("Should have been able to read the file");
 
     let lines = io::BufReader::new(nn_pairlist);
 
-    let mut nn_pair: HashMap<u64, [u32; 20], FnvBuildHasher> =
+    let mut nn_pair: HashMap<u64, [u32; super::NN_PAIR_NUMBER], FnvBuildHasher> =
         FnvHashMap::with_capacity_and_hasher(32000, Default::default());
 
     for line in lines.lines() {
@@ -93,7 +95,7 @@ pub fn read_nn_pairlists(nn_pairlist_file: &str) -> HashMap<u64, [u32; 20], FnvB
             test[0].parse::<u32>().unwrap(),
             test[1].parse::<u32>().unwrap(),
         );
-        let mut neighbors: [u32; 20] = [0; 20];
+        let mut neighbors: [u32; super::NN_PAIR_NUMBER] = [0; super::NN_PAIR_NUMBER];
 
         for (i, l) in test.iter().skip(2).enumerate() {
             neighbors[i] = l.parse::<u32>().unwrap()
