@@ -81,7 +81,7 @@ fn main() {
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
     let start_temperature: Option<f64> = args.begin_temperature;
-    let nsites: u32 = 15 * 15 * 15 * 4;
+    let nsites: u32 = 17 * 17 * 17 * 4;
     let atoms_input = args.atoms_input;
     let unique_levels = args.unique_levels;
     if !std::path::Path::new(&save_folder).exists() {
@@ -116,7 +116,7 @@ fn main() {
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
                 niter,
-                nsites,
+                // nsites,
                 input_file,
                 atoms_input,
                 temperature,

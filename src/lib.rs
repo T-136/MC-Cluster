@@ -22,7 +22,7 @@ pub use sim::Results;
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
 
-const GRID_SIZE: [f64; 3] = [15., 15., 15.];
+const GRID_SIZE: [u32; 3] = [17, 17, 17];
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -55,7 +55,7 @@ pub struct Simulation {
 impl Simulation {
     pub fn new(
         niter: u64,
-        nsites: u32,
+        // nsites: u32,
         input_file: Option<String>,
         atoms_input: Option<u32>,
         temperature: f64,
@@ -71,6 +71,7 @@ impl Simulation {
         repetition: usize,
         optimization_cut_off_perc: f64,
     ) -> Simulation {
+        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
         let nn_pair = read_files::read_nn_pairlists(&nn_pairlist_file);
         // let nnn_pair = read_files::read_nnn_pairlists(&nnn_pairlist_file);
@@ -84,9 +85,9 @@ impl Simulation {
         });
         let unit_cell_size = bulk.unscaled_lattice_vectors();
         let unit_cell = UnitCell::new([
-            unit_cell_size[0][0] * GRID_SIZE[0],
-            unit_cell_size[1][1] * GRID_SIZE[1],
-            unit_cell_size[2][2] * GRID_SIZE[2],
+            unit_cell_size[0][0] * GRID_SIZE[0] as f64,
+            unit_cell_size[1][1] * GRID_SIZE[1] as f64,
+            unit_cell_size[2][2] * GRID_SIZE[2] as f64,
         ]);
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
 
