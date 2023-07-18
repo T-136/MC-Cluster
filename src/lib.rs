@@ -22,7 +22,7 @@ pub use sim::Results;
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
 
-const GRID_SIZE: [u32; 3] = [17, 17, 17];
+const GRID_SIZE: [u32; 3] = [15, 15, 15];
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -42,7 +42,7 @@ pub struct Simulation {
     unit_cell: UnitCell,
     cn_dict: [u32; CN + 1],
     save_folder: String,
-    trajectory_frequency: Option<u64>,
+    last_traj_frequency: u64,
     last_frames_trajectory: Option<u64>,
     start_temperature: Option<f64>,
     temperature: f64,
@@ -55,7 +55,6 @@ pub struct Simulation {
 impl Simulation {
     pub fn new(
         niter: u64,
-        // nsites: u32,
         input_file: Option<String>,
         atoms_input: Option<u32>,
         temperature: f64,
@@ -65,7 +64,7 @@ impl Simulation {
         nn_pairlist_file: String,
         // nnn_pairlist_file: String,
         atom_sites: String,
-        trajectory_frequency: Option<u64>,
+        last_traj_frequency: u64,
         last_frames_trajectory: Option<u64>,
         bulk_file_name: String,
         repetition: usize,
@@ -182,7 +181,7 @@ impl Simulation {
             unit_cell,
             cn_dict,
             save_folder: sub_folder,
-            trajectory_frequency,
+            last_traj_frequency,
             last_frames_trajectory,
             start_temperature,
             temperature,
@@ -206,15 +205,15 @@ impl Simulation {
             e_number_seed,
         };
 
-        let mut trajectory: Option<Trajectory>;
+        // let mut trajectory: Option<Trajectory>;
 
-        if let Some(_) = self.trajectory_frequency {
-            trajectory = Some(
-                Trajectory::open(self.save_folder.clone() + "/total_time_traj.xyz", 'w').unwrap(),
-            );
-        } else {
-            trajectory = None;
-        }
+        // if let Some(_) = self.trajectory_frequency {
+        //     trajectory = Some(
+        //         Trajectory::open(self.save_folder.clone() + "/total_time_traj.xyz", 'w').unwrap(),
+        //     );
+        // } else {
+        //     trajectory = None;
+        // }
 
         let mut trajectory_last_frames: Option<Trajectory>;
         if let Some(i) = self.last_frames_trajectory {
@@ -263,7 +262,7 @@ impl Simulation {
             );
         }
         for iiter in 0..self.niter {
-            if iiter % 100000 == 0 {
+            if iiter % 100000000 == 0 {
                 println!(
                     "iteration {}; {}%",
                     iiter,
@@ -295,7 +294,7 @@ impl Simulation {
             self.write_trajectorys(
                 &iiter,
                 // &mut xyz,
-                &mut trajectory,
+                // &mut trajectory,
                 &mut trajectory_last_frames,
             );
             temp_energy_section = self.save_sections(
@@ -330,7 +329,7 @@ impl Simulation {
         temp_cn_dict_section: &mut [u32; CN + 1],
         amount_unique_levels: &mut i32,
     ) -> i64 {
-        const SECTION_SIZE: u64 = 1000000;
+        const SECTION_SIZE: u64 = 100000000;
         temp_energy_section_1000 += self.total_energy_1000;
 
         temp_cn_dict_section
@@ -426,19 +425,22 @@ impl Simulation {
     fn write_trajectorys(
         &self,
         iiter: &u64,
-        trajectory_option: &mut Option<Trajectory>,
+        // trajectory_option: &mut Option<Trajectory>,
         trajectory_last_frames_option: &mut Option<Trajectory>,
     ) {
-        if let Some(trajectory_last_frames) = trajectory_last_frames_option {
-            if self.niter - iiter <= self.last_frames_trajectory.unwrap() {
-                self.write_traj(trajectory_last_frames);
+        if let Some(traj_last_frames) = trajectory_last_frames_option {
+            if (self.niter - iiter
+                <= self.last_frames_trajectory.unwrap() * self.last_traj_frequency)
+                && ((self.niter - iiter) % self.last_frames_trajectory.unwrap() == 0)
+            {
+                self.write_traj(traj_last_frames);
             }
         }
-        if let Some(trajectory) = trajectory_option {
-            if self.niter - iiter > self.last_frames_trajectory.unwrap_or(0) && iiter % 100 == 0 {
-                self.write_traj(trajectory);
-            }
-        }
+        // if let Some(trajectory) = trajectory_option {
+        //     if self.niter - iiter > self.last_frames_trajectory.unwrap_or(0) && iiter % 100 == 0 {
+        //         self.write_traj(trajectory);
+        //     }
+        // }
     }
 
     fn write_traj(&self, trajectory: &mut Trajectory) {
@@ -507,6 +509,7 @@ impl Simulation {
     ) {
         let lower_position = cmp::min(&move_from, &move_to).clone();
         let higher_position = cmp::max(&move_from, &move_to).clone();
+
         for o in self
             .nn_pair
             .get(&(lower_position as u64 + ((higher_position as u64) << 32)))

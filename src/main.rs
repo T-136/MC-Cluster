@@ -3,7 +3,6 @@ use mc::Simulation;
 use std::fs;
 use std::panic;
 use std::thread;
-// use time_graph::enable_data_collection;
 
 fn fmt_scient(num: &str) -> u64 {
     let mut parts = num.split(['e', 'E']);
@@ -45,17 +44,17 @@ struct Args {
     #[arg(short, long, default_value_t = 1)]
     repetition: usize,
 
-    #[arg(short, long, default_value_t = String::from("../171717-pair"))]
+    #[arg(short, long, default_value_t = String::from("../555-pair"))]
     grid_folder: String,
 
     #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]
     core_file: String,
 
-    #[arg(short, long)]
-    last_frames_trajectory: Option<u64>,
+    #[arg(long)]
+    last_frames_xyz: Option<u64>,
 
-    #[arg(short, long)]
-    write_trajectory_frequency: Option<u64>,
+    #[arg(short, long, default_value_t = 1)]
+    write_trajectory_frequency: u64,
 
     #[arg(short, long, default_value_t = 0.50)]
     optimization_cut_off_perc: f64,
@@ -81,7 +80,6 @@ fn main() {
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
     let start_temperature: Option<f64> = args.begin_temperature;
-    let nsites: u32 = 17 * 17 * 17 * 4;
     let atoms_input = args.atoms_input;
     let unique_levels = args.unique_levels;
     if !std::path::Path::new(&save_folder).exists() {
@@ -96,8 +94,8 @@ fn main() {
 
     let niter_str = args.iterations;
     let niter = fmt_scient(&niter_str);
-    let trajectory_frequency: Option<u64> = args.write_trajectory_frequency;
-    let last_frames_trajectory: Option<u64> = args.last_frames_trajectory;
+    let last_traj_frequency: u64 = args.write_trajectory_frequency;
+    let last_frames_trajectory: Option<u64> = args.last_frames_xyz;
     let bulk_file_name: String = args.core_file;
     let optimization_cut_off_perc: f64 = args.optimization_cut_off_perc;
 
@@ -116,7 +114,6 @@ fn main() {
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
                 niter,
-                // nsites,
                 input_file,
                 atoms_input,
                 temperature,
@@ -126,7 +123,7 @@ fn main() {
                 nn_pairlist_file,
                 // nnn_pairlist_file,
                 atom_sites,
-                trajectory_frequency,
+                last_traj_frequency,
                 last_frames_trajectory,
                 bulk_file_name,
                 rep,
