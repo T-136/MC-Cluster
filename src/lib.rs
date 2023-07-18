@@ -22,7 +22,7 @@ pub use sim::Results;
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
 
-const GRID_SIZE: [u32; 3] = [15, 15, 15];
+const GRID_SIZE: [u32; 3] = [20, 20, 20];
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -217,9 +217,10 @@ impl Simulation {
 
         let mut trajectory_last_frames: Option<Trajectory>;
         if let Some(i) = self.last_frames_trajectory {
+            let range = i * self.last_traj_frequency;
             trajectory_last_frames = Some(
                 Trajectory::open(
-                    self.save_folder.clone() + &format!("/last_{i}_frames_trajectory.xyz"),
+                    self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
                     'w',
                 )
                 .unwrap(),
