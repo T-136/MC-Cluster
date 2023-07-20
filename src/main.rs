@@ -44,7 +44,7 @@ struct Args {
     #[arg(short, long, default_value_t = 1)]
     repetition: usize,
 
-    #[arg(short, long, default_value_t = String::from("../555-pair"))]
+    #[arg(short, long, default_value_t = String::from("../171717-pair"))]
     grid_folder: String,
 
     #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]

@@ -22,7 +22,7 @@ pub use sim::Results;
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
 
-const GRID_SIZE: [u32; 3] = [20, 20, 20];
+const GRID_SIZE: [u32; 3] = [17, 17, 17];
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -236,7 +236,7 @@ impl Simulation {
             iiter: 0,
         };
         let mut temp_energy_section: i64 = 0;
-        let mut temp_cn_dict_section: [u32; CN + 1] = [0; CN + 1];
+        let mut temp_cn_dict_section: [u64; CN + 1] = [0; CN + 1];
 
         // for k in 1..13 {
         //     temp_cn_dict_section.insert(k, 0);
@@ -327,7 +327,7 @@ impl Simulation {
         &mut self,
         iiter: &u64,
         mut temp_energy_section_1000: i64,
-        temp_cn_dict_section: &mut [u32; CN + 1],
+        temp_cn_dict_section: &mut [u64; CN + 1],
         amount_unique_levels: &mut i32,
     ) -> i64 {
         const SECTION_SIZE: u64 = 100000000;
@@ -336,7 +336,7 @@ impl Simulation {
         temp_cn_dict_section
             .iter_mut()
             .enumerate()
-            .for_each(|(i, v)| *v += self.cn_dict[i]);
+            .for_each(|(i, v)| *v += self.cn_dict[i] as u64);
 
         if *amount_unique_levels != 0 {
             let mut cn_hash_map = HashMap::new();
@@ -387,7 +387,7 @@ impl Simulation {
                 // list.clear();
                 *list = 0;
             }
-            assert_eq!(temp_cn_dict_section, &mut [0_u32; CN + 1]);
+            assert_eq!(temp_cn_dict_section, &mut [0_u64; CN + 1]);
             self.cn_dict_sections.push(section.clone())
         }
         temp_energy_section_1000
