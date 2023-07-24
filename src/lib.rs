@@ -432,7 +432,7 @@ impl Simulation {
         if let Some(traj_last_frames) = trajectory_last_frames_option {
             if (self.niter - iiter
                 <= self.last_frames_trajectory.unwrap() * self.last_traj_frequency)
-                && ((self.niter - iiter) % self.last_frames_trajectory.unwrap() == 0)
+                && ((self.niter - iiter) % self.last_traj_frequency == 0)
             {
                 self.write_traj(traj_last_frames);
             }

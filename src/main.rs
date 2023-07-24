@@ -41,8 +41,8 @@ struct Args {
     #[arg(short, long)]
     begin_temperature: Option<f64>,
 
-    #[arg(short, long, default_value_t = 1)]
-    repetition: usize,
+    #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
+    repetition: Vec<usize>,
 
     #[arg(short, long, default_value_t = String::from("../171717-pair"))]
     grid_folder: String,
@@ -101,8 +101,10 @@ fn main() {
 
     let repetition = args.repetition;
 
+    println!("{:?}", repetition);
+
     let mut handle_vec = Vec::new();
-    for rep in 0..repetition {
+    for rep in repetition[0]..repetition[1] {
         let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let pairlist_file = pairlist_file.clone();
