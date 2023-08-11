@@ -1,12 +1,13 @@
 use fnv::FnvBuildHasher;
 use fnv::FnvHashMap;
+use fnv::FnvHashSet;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
 #[derive(Clone)]
 pub struct EnergyChange {
-    move_from_map: HashMap<u32, HashSet<u32>, FnvBuildHasher>,
-    move_to_map: HashMap<u32, HashSet<u32>, FnvBuildHasher>,
+    move_from_map: HashMap<u32, HashSet<u32, FnvBuildHasher>, FnvBuildHasher>,
+    move_to_map: HashMap<u32, HashSet<u32, FnvBuildHasher>, FnvBuildHasher>,
     energy1000_change_map: HashMap<(u32, u32), i64, FnvBuildHasher>,
 }
 
@@ -22,11 +23,11 @@ impl EnergyChange {
     pub fn add(&mut self, move_from: u32, move_to: u32, energy1000_diff: i64) {
         self.move_from_map
             .entry(move_from)
-            .or_insert(HashSet::new())
+            .or_insert(FnvHashSet::default())
             .insert(move_to);
         self.move_to_map
             .entry(move_to)
-            .or_insert(HashSet::new())
+            .or_insert(FnvHashSet::default())
             .insert(move_from);
 
         self.energy1000_change_map
@@ -42,7 +43,7 @@ impl EnergyChange {
             .contains_key(&(move_from, move_to))
     }
 
-    pub fn contains_position(&self, position: u32) -> Option<&HashSet<u32>> {
+    pub fn contains_position(&self, position: u32) -> Option<&HashSet<u32, FnvBuildHasher>> {
         if let Some(x) = self.move_from_map.get(&position) {
             return Some(x);
         } else {
