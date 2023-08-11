@@ -12,6 +12,7 @@ use std::{cmp, eprint, fs, println};
 use vasp_poscar::Poscar;
 
 // mod build_pairs;
+mod energy_change;
 mod listdict;
 mod read_files;
 mod setup;
@@ -33,6 +34,7 @@ pub struct Simulation {
     cn: Vec<usize>,
     former_energy_dict: HashMap<u32, i64, fnv::FnvBuildHasher>,
     possible_moves: listdict::ListDict,
+    energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
     nn_pair: HashMap<u64, [u32; NN_PAIR_NUMBER], fnv::FnvBuildHasher>,
@@ -164,6 +166,7 @@ impl Simulation {
         let cn_dict_sections = Vec::new();
         let energy_sections_list = Vec::new();
         let unique_levels = HashMap::new();
+        let energy_change = energy_change::EnergyChange::new();
 
         Simulation {
             niter,
@@ -173,6 +176,7 @@ impl Simulation {
             cn,
             former_energy_dict,
             possible_moves,
+            energy_change,
             total_energy_1000,
             nn,
             nn_pair,
@@ -272,16 +276,32 @@ impl Simulation {
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            self.perform_move(move_from, move_to);
+            let total_temp_energy = match self.energy_change.get(move_from, move_to) {
+                Some(x) => self.total_energy_1000.clone() + x,
+                None => {
+                    self.perform_move(move_from, move_to);
 
-            let mut total_temp_energy: i64 = self.total_energy_1000.clone();
+                    let mut total_temp_energy: i64 = self.total_energy_1000.clone();
 
-            self.temp_energy_calculation(move_from, move_to, &mut total_temp_energy);
+                    self.temp_energy_calculation(move_from, move_to, &mut total_temp_energy);
+                    total_temp_energy
+                }
+            };
 
             if self.is_acceptance_criteria_fulfilled(total_temp_energy, &mut rng_e_number, iiter) {
+                if self.energy_change.contains_move(move_from, move_to) {
+                    self.perform_move(move_from, move_to);
+                }
                 self.accept_move(total_temp_energy, move_from, move_to);
             } else {
-                self.perform_move(move_to, move_from);
+                if !self.energy_change.contains_move(move_from, move_to) {
+                    self.perform_move(move_to, move_from);
+                    self.energy_change.add(
+                        move_from,
+                        move_to,
+                        (total_temp_energy - self.total_energy_1000),
+                    );
+                }
             }
 
             if iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
@@ -589,7 +609,9 @@ impl Simulation {
         }
         self.total_energy_1000 = total_temp_energy;
 
-        self.update_possible_moves(move_from, move_to)
+        self.update_possible_moves(move_from, move_to);
+        self.energy_change.remove(move_from);
+        self.energy_change.remove(move_to);
     }
 
     fn update_possible_moves(&mut self, move_from: u32, move_to: u32) {
