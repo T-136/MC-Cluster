@@ -61,7 +61,7 @@ impl EnergyChange {
         if self.move_to_map.contains_key(&position) {
             let move_from_vec = self.move_to_map.remove(&position).unwrap();
             for move_from in move_from_vec.into_iter() {
-                self.delete(position, move_from)
+                self.delete(move_from, position)
             }
         }
     }
