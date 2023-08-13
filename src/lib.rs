@@ -32,7 +32,7 @@ pub struct Simulation {
     occ: Vec<u8>,
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     cn: Vec<usize>,
-    former_energy_dict: HashMap<u32, i64, fnv::FnvBuildHasher>,
+    former_energy1000_dict: HashMap<u32, i64, fnv::FnvBuildHasher>,
     possible_moves: listdict::ListDict,
     energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
@@ -174,7 +174,7 @@ impl Simulation {
             occ,
             onlyocc,
             cn,
-            former_energy_dict,
+            former_energy1000_dict: former_energy_dict,
             possible_moves,
             energy_change,
             total_energy_1000,
@@ -276,31 +276,23 @@ impl Simulation {
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            let total_temp_energy = match self.energy_change.get(move_from, move_to) {
+            let energy1000_diff = match self.energy_change.get(move_from, move_to) {
                 Some(x) => self.total_energy_1000.clone() + x,
                 None => {
                     self.perform_move(move_from, move_to);
-
-                    let mut total_temp_energy: i64 = self.total_energy_1000.clone();
-
-                    self.temp_energy_calculation(move_from, move_to, &mut total_temp_energy);
-                    total_temp_energy
+                    self.temp_energy_calculation(move_from, move_to)
                 }
             };
 
-            if self.is_acceptance_criteria_fulfilled(total_temp_energy, &mut rng_e_number, iiter) {
+            if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_e_number, iiter) {
                 if self.energy_change.contains_move(move_from, move_to) {
                     self.perform_move(move_from, move_to);
                 }
-                self.accept_move(total_temp_energy, move_from, move_to);
+                self.accept_move(energy1000_diff, move_from, move_to);
             } else {
                 if !self.energy_change.contains_move(move_from, move_to) {
                     self.perform_move(move_to, move_from);
-                    self.energy_change.add(
-                        move_from,
-                        move_to,
-                        (total_temp_energy - self.total_energy_1000),
-                    );
+                    self.energy_change.add(move_from, move_to, energy1000_diff);
                 }
             }
 
@@ -522,12 +514,8 @@ impl Simulation {
         (rand_value) < ((-delta_energy as f64 / 1000.) / (KB * acceptance_temp)).exp()
     }
 
-    pub fn temp_energy_calculation(
-        &self,
-        move_from: u32,
-        move_to: u32,
-        total_temp_energy: &mut i64,
-    ) {
+    pub fn temp_energy_calculation(&self, move_from: u32, move_to: u32) -> i64 {
+        let mut energy1000_diff: i64 = 0;
         let lower_position = cmp::min(&move_from, &move_to).clone();
         let higher_position = cmp::max(&move_from, &move_to).clone();
 
@@ -537,14 +525,15 @@ impl Simulation {
             .unwrap()
         {
             if self.occ[*o as usize] != 0 {
-                *total_temp_energy += sim::energy_calculation(o, &self.cn);
+                energy1000_diff += sim::energy_calculation(o, &self.cn);
                 if o == &move_to {
                     continue;
                 }
-                *total_temp_energy -= self.former_energy_dict[o];
+                energy1000_diff -= self.former_energy1000_dict[o];
             }
         }
-        *total_temp_energy -= self.former_energy_dict[&move_from];
+        energy1000_diff -= self.former_energy1000_dict[&move_from];
+        energy1000_diff
     }
 
     fn perform_move(&mut self, move_from: u32, move_to: u32) {
@@ -571,7 +560,7 @@ impl Simulation {
         // self.cn_dict[self.cn[move_to as usize]] += 1;
     }
 
-    fn accept_move(&mut self, total_temp_energy: i64, move_from: u32, move_to: u32) {
+    fn accept_move(&mut self, energy1000_diff: i64, move_from: u32, move_to: u32) {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
@@ -604,10 +593,11 @@ impl Simulation {
         let lower_position = cmp::min(&move_from, &move_to).clone();
         let higher_position = cmp::max(&move_from, &move_to).clone();
         for o in &self.nn_pair[&(lower_position as u64 + ((higher_position as u64) << 32))] {
-            self.former_energy_dict
+            self.energy_change.remove(*o);
+            self.former_energy1000_dict
                 .insert(*o, sim::energy_calculation(o, &self.cn));
         }
-        self.total_energy_1000 = total_temp_energy;
+        self.total_energy_1000 += energy1000_diff;
 
         self.update_possible_moves(move_from, move_to);
         self.energy_change.remove(move_from);
