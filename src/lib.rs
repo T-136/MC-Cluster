@@ -274,13 +274,16 @@ impl Simulation {
 
             // self.perform_move(move_from, move_to);
 
-            let mut total_temp_energy: i64 = self.total_energy_1000.clone();
+            // let mut total_temp_energy: i64 = self.total_energy_1000.clone();
 
-            self.temp_energy_calculation(move_from, move_to, &mut total_temp_energy);
+            let energy1000_diff = self.energy_diff(move_from, move_to);
 
-            if self.is_acceptance_criteria_fulfilled(total_temp_energy, &mut rng_e_number, iiter) {
+            if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_e_number, iiter) {
                 self.perform_move(move_from, move_to);
-                self.accept_move(total_temp_energy, move_from, move_to);
+                self.accept_move(energy1000_diff, move_from, move_to);
+                println!("{:?}", self.cn.iter().sum::<usize>());
+                println!("{:?}", self.cn_dict);
+                // println!("{:?}", self.total_energy_1000);
                 // } else {
                 //     self.perform_move(move_to, move_from);
             }
@@ -487,32 +490,28 @@ impl Simulation {
 
     fn is_acceptance_criteria_fulfilled(
         &mut self,
-        proposed_energy: i64,
+        energy1000_diff: i64,
         rng_e_number: &mut ChaCha20Rng,
         iiter: u64,
     ) -> bool {
         const KB: f64 = 8.6173324e-5;
         // if self.start_temperature.is_some() {
-        if proposed_energy < self.total_energy_1000 {
+        if energy1000_diff < 0 {
             return true;
         }
         let acceptance_temp = self.calculate_current_temp(iiter);
         let between = Uniform::new_inclusive(0., 1.);
-        let delta_energy = proposed_energy - self.total_energy_1000;
+        // let delta_energy = proposed_energy - self.total_energy_1000;
         let rand_value = between.sample(rng_e_number);
-        (rand_value) < ((-delta_energy as f64 / 1000.) / (KB * acceptance_temp)).exp()
+        (rand_value) < ((-energy1000_diff as f64 / 1000.) / (KB * acceptance_temp)).exp()
     }
 
-    pub fn temp_energy_calculation(
-        &self,
-        move_from: u32,
-        move_to: u32,
-        total_temp_energy: &mut i64,
-    ) {
+    pub fn energy_diff(&self, move_from: u32, move_to: u32) -> i64 {
         const M_BETA: i64 = -0330;
         const M_ALPHA: i64 = 3960;
-        *total_temp_energy -= 2 * ((self.cn[move_from as usize] as i64 + 1) * M_BETA + M_ALPHA);
-        *total_temp_energy += 2 * ((self.cn[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA);
+        (2 * ((self.cn[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA))
+            - (2 * ((self.cn[move_from as usize] as i64 + 1) * M_BETA + M_ALPHA))
+
         // let lower_position = cmp::min(&move_from, &move_to).clone();
         // let higher_position = cmp::max(&move_from, &move_to).clone();
         //
@@ -556,7 +555,7 @@ impl Simulation {
         // self.cn_dict[self.cn[move_to as usize]] += 1;
     }
 
-    fn accept_move(&mut self, total_temp_energy: i64, move_from: u32, move_to: u32) {
+    fn accept_move(&mut self, energy1000_diff: i64, move_from: u32, move_to: u32) {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
@@ -586,13 +585,13 @@ impl Simulation {
         }
         self.cn_dict[self.cn[move_to as usize]] += 1;
 
-        let lower_position = cmp::min(&move_from, &move_to).clone();
-        let higher_position = cmp::max(&move_from, &move_to).clone();
-        for o in &self.nn_pair[&(lower_position as u64 + ((higher_position as u64) << 32))] {
-            self.former_energy_dict
-                .insert(*o, sim::energy_calculation(o, &self.cn));
-        }
-        self.total_energy_1000 = total_temp_energy;
+        // let lower_position = cmp::min(&move_from, &move_to).clone();
+        // let higher_position = cmp::max(&move_from, &move_to).clone();
+        // for o in &self.nn_pair[&(lower_position as u64 + ((higher_position as u64) << 32))] {
+        //     self.former_energy_dict
+        //         .insert(*o, sim::energy_calculation(o, &self.cn));
+        // }
+        self.total_energy_1000 += energy1000_diff;
 
         self.update_possible_moves(move_from, move_to)
     }
