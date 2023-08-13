@@ -272,16 +272,17 @@ impl Simulation {
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            self.perform_move(move_from, move_to);
+            // self.perform_move(move_from, move_to);
 
             let mut total_temp_energy: i64 = self.total_energy_1000.clone();
 
             self.temp_energy_calculation(move_from, move_to, &mut total_temp_energy);
 
             if self.is_acceptance_criteria_fulfilled(total_temp_energy, &mut rng_e_number, iiter) {
+                self.perform_move(move_from, move_to);
                 self.accept_move(total_temp_energy, move_from, move_to);
-            } else {
-                self.perform_move(move_to, move_from);
+                // } else {
+                //     self.perform_move(move_to, move_from);
             }
 
             if iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
@@ -508,23 +509,27 @@ impl Simulation {
         move_to: u32,
         total_temp_energy: &mut i64,
     ) {
-        let lower_position = cmp::min(&move_from, &move_to).clone();
-        let higher_position = cmp::max(&move_from, &move_to).clone();
-
-        for o in self
-            .nn_pair
-            .get(&(lower_position as u64 + ((higher_position as u64) << 32)))
-            .unwrap()
-        {
-            if self.occ[*o as usize] != 0 {
-                *total_temp_energy += sim::energy_calculation(o, &self.cn);
-                if o == &move_to {
-                    continue;
-                }
-                *total_temp_energy -= self.former_energy_dict[o];
-            }
-        }
-        *total_temp_energy -= self.former_energy_dict[&move_from];
+        const M_BETA: i64 = -0330;
+        const M_ALPHA: i64 = 3960;
+        *total_temp_energy -= 2 * ((self.cn[move_from as usize] as i64 + 1) * M_BETA + M_ALPHA);
+        *total_temp_energy += 2 * ((self.cn[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA);
+        // let lower_position = cmp::min(&move_from, &move_to).clone();
+        // let higher_position = cmp::max(&move_from, &move_to).clone();
+        //
+        // for o in self
+        //     .nn_pair
+        //     .get(&(lower_position as u64 + ((higher_position as u64) << 32)))
+        //     .unwrap()
+        // {
+        //     if self.occ[*o as usize] != 0 {
+        // *total_temp_energy += sim::energy_calculation(o, &self.cn);
+        //         if o == &move_to {
+        //             continue;
+        //         }
+        //         *total_temp_energy -= self.former_energy_dict[o];
+        //     }
+        // }
+        // *total_temp_energy -= self.former_energy_dict[&move_from];
     }
 
     fn perform_move(&mut self, move_from: u32, move_to: u32) {
