@@ -281,9 +281,6 @@ impl Simulation {
             if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_e_number, iiter) {
                 self.perform_move(move_from, move_to);
                 self.accept_move(energy1000_diff, move_from, move_to);
-                println!("{:?}", self.cn.iter().sum::<usize>());
-                println!("{:?}", self.cn_dict);
-                // println!("{:?}", self.total_energy_1000);
                 // } else {
                 //     self.perform_move(move_to, move_from);
             }
@@ -510,7 +507,7 @@ impl Simulation {
         const M_BETA: i64 = -0330;
         const M_ALPHA: i64 = 3960;
         (2 * ((self.cn[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA))
-            - (2 * ((self.cn[move_from as usize] as i64 + 1) * M_BETA + M_ALPHA))
+            - (2 * ((self.cn[move_from as usize] as i64) * M_BETA + M_ALPHA))
 
         // let lower_position = cmp::min(&move_from, &move_to).clone();
         // let higher_position = cmp::max(&move_from, &move_to).clone();
