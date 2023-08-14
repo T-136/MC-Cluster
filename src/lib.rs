@@ -272,17 +272,11 @@ impl Simulation {
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            // self.perform_move(move_from, move_to);
-
-            // let mut total_temp_energy: i64 = self.total_energy_1000.clone();
-
             let energy1000_diff = self.energy_diff(move_from, move_to);
 
             if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_e_number, iiter) {
-                self.perform_move(move_from, move_to);
-                self.accept_move(energy1000_diff, move_from, move_to);
-                // } else {
-                //     self.perform_move(move_to, move_from);
+                self.perform_move(move_from, move_to, energy1000_diff);
+                self.update_possible_moves(move_from, move_to)
             }
 
             if iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
@@ -508,51 +502,12 @@ impl Simulation {
         const M_ALPHA: i64 = 3960;
         (2 * ((self.cn[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA))
             - (2 * ((self.cn[move_from as usize] as i64) * M_BETA + M_ALPHA))
-
-        // let lower_position = cmp::min(&move_from, &move_to).clone();
-        // let higher_position = cmp::max(&move_from, &move_to).clone();
-        //
-        // for o in self
-        //     .nn_pair
-        //     .get(&(lower_position as u64 + ((higher_position as u64) << 32)))
-        //     .unwrap()
-        // {
-        //     if self.occ[*o as usize] != 0 {
-        // *total_temp_energy += sim::energy_calculation(o, &self.cn);
-        //         if o == &move_to {
-        //             continue;
-        //         }
-        //         *total_temp_energy -= self.former_energy_dict[o];
-        //     }
-        // }
-        // *total_temp_energy -= self.former_energy_dict[&move_from];
     }
 
-    fn perform_move(&mut self, move_from: u32, move_to: u32) {
+    fn perform_move(&mut self, move_from: u32, move_to: u32, energy1000_diff: i64) {
         self.occ[move_to as usize] = self.occ[move_from as usize]; // covers different alloys also
         self.occ[move_from as usize] = 0;
 
-        // self.cn_dict[self.cn[move_from as usize]] -= 1;
-        for o in self.nn[&move_from] {
-            // if self.occ[*o as usize] == 1 && o != &move_to {
-            // self.cn_dict[self.cn[*o as usize]] -= 1;
-            // self.cn_dict[self.cn[*o as usize] - 1] += 1;
-            // cn_change -= 1;
-            // }
-            self.cn[o as usize] -= 1;
-        }
-        for o in self.nn[&move_to] {
-            // if self.occ[*o as usize] == 1 && o != &move_from {
-            // self.cn_dict[self.cn[*o as usize] as usize] -= 1;
-            // self.cn_dict[(self.cn[*o as usize] + 1) as usize] += 1;
-            //     cn_change += 1
-            // }
-            self.cn[o as usize] += 1;
-        }
-        // self.cn_dict[self.cn[move_to as usize]] += 1;
-    }
-
-    fn accept_move(&mut self, energy1000_diff: i64, move_from: u32, move_to: u32) {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
@@ -561,42 +516,34 @@ impl Simulation {
             .filter(|x| self.nn[&move_to].contains(x))
             .collect();
 
-        //-1 because the cn of move_from was cahnged in perform_move
-        self.cn_dict[self.cn[move_from as usize] - 1] -= 1;
-        for o in &self.nn[&move_from] {
-            if !nn_intersection.contains(o) {
-                if self.occ[*o as usize] == 1 && o != &move_to {
-                    //remember cn[o] allready changed in perform_move
-                    self.cn_dict[self.cn[*o as usize] + 1] -= 1;
-                    self.cn_dict[self.cn[*o as usize]] += 1;
+        // self.cn_dict[self.cn[move_from as usize]] -= 1;
+        for o in self.nn[&move_from] {
+            if !nn_intersection.contains(&o) {
+                if self.occ[o as usize] == 1 && o != move_to {
+                    self.cn_dict[self.cn[o as usize]] -= 1;
+                    self.cn_dict[self.cn[o as usize] - 1] += 1;
                 }
             }
+            self.cn[o as usize] -= 1;
         }
-        for o in &self.nn[&move_to] {
-            if !nn_intersection.contains(o) {
-                if self.occ[*o as usize] == 1 && o != &move_from {
-                    self.cn_dict[self.cn[*o as usize] - 1] -= 1;
-                    self.cn_dict[self.cn[*o as usize]] += 1;
+        for o in self.nn[&move_to] {
+            if !nn_intersection.contains(&o) {
+                if self.occ[o as usize] == 1 && o != move_from {
+                    self.cn_dict[self.cn[o as usize]] -= 1;
+                    self.cn_dict[self.cn[o as usize] + 1] += 1;
                 }
             }
+            self.cn[o as usize] += 1;
         }
         self.cn_dict[self.cn[move_to as usize]] += 1;
 
-        // let lower_position = cmp::min(&move_from, &move_to).clone();
-        // let higher_position = cmp::max(&move_from, &move_to).clone();
-        // for o in &self.nn_pair[&(lower_position as u64 + ((higher_position as u64) << 32))] {
-        //     self.former_energy_dict
-        //         .insert(*o, sim::energy_calculation(o, &self.cn));
-        // }
         self.total_energy_1000 += energy1000_diff;
-
-        self.update_possible_moves(move_from, move_to)
     }
 
     fn update_possible_moves(&mut self, move_from: u32, move_to: u32) {
         for neighbor_atom in self.nn[&move_from] {
             self.possible_moves.remove_item(move_from, neighbor_atom);
-            if self.occ[neighbor_atom as usize] != 0 {
+            if self.occ[neighbor_atom as usize] == 1 {
                 // greater than one because of neighbor moving in this spot
                 if self.cn[move_from as usize] > 1 {
                     self.possible_moves.add_item(neighbor_atom, move_from)
