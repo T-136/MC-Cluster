@@ -30,12 +30,11 @@ pub struct Simulation {
     number_all_atoms: u32,
     occ: Vec<u8>,
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
-    cn: Vec<usize>,
-    former_energy_dict: HashMap<u32, i64, fnv::FnvBuildHasher>,
+    cn_metal: Vec<usize>,
     possible_moves: listdict::ListDict,
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
-    nn_pair: HashMap<u64, [u32; NN_PAIR_NUMBER], fnv::FnvBuildHasher>,
+    // nn_pair: HashMap<u64, [u32; NN_PAIR_NUMBER], fnv::FnvBuildHasher>,
     // nnn_pair: HashMap<u64, [u32; 74], fnv::FnvBuildHasher>,
     // mut xyz: Vec<[f64; 3]>,
     xsites_positions: Vec<[f64; 3]>,
@@ -72,7 +71,7 @@ impl Simulation {
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
-        let nn_pair = read_files::read_nn_pairlists(&nn_pairlist_file);
+        // let nn_pair = read_files::read_nn_pairlists(&nn_pairlist_file);
         // let nnn_pair = read_files::read_nnn_pairlists(&nnn_pairlist_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
@@ -104,7 +103,7 @@ impl Simulation {
         } else {
             panic!("gib input atoms or input file");
         };
-        let mut cn: Vec<usize> = Vec::with_capacity(nsites as usize);
+        let mut cn_metal: Vec<usize> = Vec::with_capacity(nsites as usize);
         for o in 0..nsites {
             let mut neighbors: u8 = 0;
             for o1 in nn[&o].iter() {
@@ -113,25 +112,25 @@ impl Simulation {
                     neighbors += 1;
                 }
             }
-            cn.push(neighbors as usize);
+            cn_metal.push(neighbors as usize);
             if occ[o as usize] == 1 {
-                cn_dict[cn[o as usize] as usize] += 1;
+                cn_dict[cn_metal[o as usize] as usize] += 1;
             };
         }
-        let mut former_energy_dict: fnv::FnvHashMap<u32, i64> =
-            fnv::FnvHashMap::with_capacity_and_hasher(nsites as usize, Default::default());
+        // let mut former_energy_dict: fnv::FnvHashMap<u32, i64> =
+        //     fnv::FnvHashMap::with_capacity_and_hasher(nsites as usize, Default::default());
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new();
         for o in onlyocc.iter() {
-            let energy_1000: i64 = sim::energy_calculation(o, &cn);
+            let energy_1000: i64 = sim::energy_calculation(o, &cn_metal);
             total_energy_1000 += energy_1000;
-            former_energy_dict.insert(o.clone(), energy_1000);
+            // former_energy_dict.insert(o.clone(), energy_1000);
 
             for u in &nn[o] {
                 if occ[*u as usize] == 0 {
                     // >1 so that atoms cant leave the cluster
                     // <x cant move if all neighbors are occupied
-                    if cn[*o as usize] < CN && cn[*u as usize] > 1 {
+                    if cn_metal[*o as usize] < CN && cn_metal[*u as usize] > 1 {
                         possible_moves.add_item(o.clone(), u.clone())
                     }
                 }
@@ -170,12 +169,11 @@ impl Simulation {
             number_all_atoms,
             occ,
             onlyocc,
-            cn,
-            former_energy_dict,
+            cn_metal,
             possible_moves,
             total_energy_1000,
             nn,
-            nn_pair,
+            // nn_pair,
             // nnn_pair,
             xsites_positions,
             unit_cell,
@@ -394,9 +392,9 @@ impl Simulation {
             let empty_set: HashSet<&u32> =
                 HashSet::from_iter(self.possible_moves.iter().map(|(_, empty)| empty));
             for empty in empty_set {
-                if self.cn[*empty as usize] > 3 {
+                if self.cn_metal[*empty as usize] > 3 {
                     empty_neighbor_cn
-                        .entry(self.cn[*empty as usize] as u8)
+                        .entry(self.cn_metal[*empty as usize] as u8)
                         .and_modify(|x| *x += 1)
                         .or_insert(1);
                 }
@@ -500,8 +498,8 @@ impl Simulation {
     pub fn energy_diff(&self, move_from: u32, move_to: u32) -> i64 {
         const M_BETA: i64 = -0330;
         const M_ALPHA: i64 = 3960;
-        (2 * ((self.cn[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA))
-            - (2 * ((self.cn[move_from as usize] as i64) * M_BETA + M_ALPHA))
+        (2 * ((self.cn_metal[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA))
+            - (2 * ((self.cn_metal[move_from as usize] as i64) * M_BETA + M_ALPHA))
     }
 
     fn perform_move(&mut self, move_from: u32, move_to: u32, energy1000_diff: i64) {
@@ -520,22 +518,22 @@ impl Simulation {
         for o in self.nn[&move_from] {
             if !nn_intersection.contains(&o) {
                 if self.occ[o as usize] == 1 && o != move_to {
-                    self.cn_dict[self.cn[o as usize]] -= 1;
-                    self.cn_dict[self.cn[o as usize] - 1] += 1;
+                    self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                    self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
                 }
+                self.cn_metal[o as usize] -= 1;
             }
-            self.cn[o as usize] -= 1;
         }
         for o in self.nn[&move_to] {
             if !nn_intersection.contains(&o) {
                 if self.occ[o as usize] == 1 && o != move_from {
-                    self.cn_dict[self.cn[o as usize]] -= 1;
-                    self.cn_dict[self.cn[o as usize] + 1] += 1;
+                    self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                    self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
                 }
+                self.cn_metal[o as usize] += 1;
             }
-            self.cn[o as usize] += 1;
         }
-        self.cn_dict[self.cn[move_to as usize]] += 1;
+        self.cn_dict[self.cn_metal[move_to as usize]] += 1;
 
         self.total_energy_1000 += energy1000_diff;
     }
@@ -545,7 +543,7 @@ impl Simulation {
             self.possible_moves.remove_item(move_from, neighbor_atom);
             if self.occ[neighbor_atom as usize] == 1 {
                 // greater than one because of neighbor moving in this spot
-                if self.cn[move_from as usize] > 1 {
+                if self.cn_metal[move_from as usize] > 1 {
                     self.possible_moves.add_item(neighbor_atom, move_from)
                 }
             }
@@ -555,7 +553,7 @@ impl Simulation {
             self.possible_moves.remove_item(empty_neighbor, move_to);
             if self.occ[empty_neighbor as usize] == 0 {
                 // greater than one because of neighbor moving in this spot
-                if self.cn[empty_neighbor as usize] > 1 {
+                if self.cn_metal[empty_neighbor as usize] > 1 {
                     self.possible_moves.add_item(move_to, empty_neighbor)
                 }
             }
