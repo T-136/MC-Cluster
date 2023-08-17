@@ -42,7 +42,7 @@ pub struct Simulation {
     cn_dict: [u32; CN + 1],
     save_folder: String,
     last_traj_frequency: u64,
-    last_frames_trajectory: Option<u64>,
+    last_frames_trajectory_amount: Option<u64>,
     start_temperature: Option<f64>,
     temperature: f64,
     cn_dict_sections: Vec<HashMap<u8, f64>>,
@@ -64,7 +64,7 @@ impl Simulation {
         // nnn_pairlist_file: String,
         atom_sites: String,
         last_traj_frequency: u64,
-        last_frames_trajectory: Option<u64>,
+        last_frames_trajectory_amount: Option<u64>,
         bulk_file_name: String,
         repetition: usize,
         optimization_cut_off_perc: f64,
@@ -180,7 +180,7 @@ impl Simulation {
             cn_dict,
             save_folder: sub_folder,
             last_traj_frequency,
-            last_frames_trajectory,
+            last_frames_trajectory_amount,
             start_temperature,
             temperature,
             cn_dict_sections,
@@ -214,7 +214,7 @@ impl Simulation {
         // }
 
         let mut trajectory_last_frames: Option<Trajectory>;
-        if let Some(i) = self.last_frames_trajectory {
+        if let Some(i) = self.last_frames_trajectory_amount {
             let range = i * self.last_traj_frequency;
             trajectory_last_frames = Some(
                 Trajectory::open(
@@ -260,8 +260,10 @@ impl Simulation {
                 // &mut trajectory_lowest_energy,
             );
         }
+        let section_size: u64 = self.niter / 10000;
+
         for iiter in 0..self.niter {
-            if iiter % 100000000 == 0 {
+            if iiter % section_size == 0 {
                 println!(
                     "iteration {}; {}%",
                     iiter,
@@ -296,6 +298,7 @@ impl Simulation {
                 temp_energy_section,
                 &mut temp_cn_dict_section,
                 &mut amount_unique_levels,
+                section_size,
             );
         }
 
@@ -322,8 +325,8 @@ impl Simulation {
         mut temp_energy_section_1000: i64,
         temp_cn_dict_section: &mut [u64; CN + 1],
         amount_unique_levels: &mut i32,
+        section_size: u64,
     ) -> i64 {
-        const SECTION_SIZE: u64 = 100000000;
         temp_energy_section_1000 += self.total_energy_1000;
 
         temp_cn_dict_section
@@ -364,9 +367,9 @@ impl Simulation {
                 //     });
             }
         }
-        if (iiter + 1) % SECTION_SIZE == 0 {
+        if (iiter + 1) % section_size == 0 {
             self.energy_sections_list
-                .push(temp_energy_section_1000 as f64 / SECTION_SIZE as f64 / 1000.);
+                .push(temp_energy_section_1000 as f64 / section_size as f64 / 1000.);
             temp_energy_section_1000 = 0;
             // temp_energy_section.clear();
 
@@ -376,7 +379,7 @@ impl Simulation {
                 // for v1 in list.into_iter() {
                 //     temp_cn_summ += v1.clone();
                 // }
-                section.insert(k as u8, *list as f64 / SECTION_SIZE as f64);
+                section.insert(k as u8, *list as f64 / section_size as f64);
                 // list.clear();
                 *list = 0;
             }
@@ -424,8 +427,8 @@ impl Simulation {
     ) {
         if let Some(traj_last_frames) = trajectory_last_frames_option {
             if (self.niter - iiter
-                <= self.last_frames_trajectory.unwrap() * self.last_traj_frequency)
-                && ((self.niter - iiter) % self.last_frames_trajectory.unwrap() == 0)
+                <= self.last_frames_trajectory_amount.unwrap() * self.last_traj_frequency)
+                && ((self.niter - iiter) % self.last_traj_frequency == 0)
             {
                 self.write_traj(traj_last_frames);
             }
@@ -449,7 +452,9 @@ impl Simulation {
             frame.add_atom(&Atom::new("Pt"), [atom[0], atom[1], atom[2]], None);
         }
 
-        trajectory.write(&mut frame).unwrap();
+        trajectory
+            .write(&mut frame)
+            .unwrap_or_else(|x| eprintln!("{}", x));
     }
 
     fn calculate_current_temp(&self, iiter: u64) -> f64 {

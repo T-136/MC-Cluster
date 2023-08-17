@@ -95,7 +95,7 @@ fn main() {
     let niter_str = args.iterations;
     let niter = fmt_scient(&niter_str);
     let last_traj_frequency: u64 = args.write_trajectory_frequency;
-    let last_frames_trajectory: Option<u64> = args.last_frames_xyz;
+    let last_frames_trajectory_amount: Option<u64> = args.last_frames_xyz;
     let bulk_file_name: String = args.core_file;
     let optimization_cut_off_perc: f64 = args.optimization_cut_off_perc;
 
@@ -124,7 +124,7 @@ fn main() {
                 // nnn_pairlist_file,
                 atom_sites,
                 last_traj_frequency,
-                last_frames_trajectory,
+                last_frames_trajectory_amount,
                 bulk_file_name,
                 rep,
                 optimization_cut_off_perc,
