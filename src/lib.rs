@@ -519,7 +519,7 @@ impl Simulation {
             .filter(|x| self.nn[&move_to].contains(x))
             .collect();
 
-        // self.cn_dict[self.cn[move_from as usize]] -= 1;
+        self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         for o in self.nn[&move_from] {
             if !nn_intersection.contains(&o) {
                 if self.occ[o as usize] == 1 && o != move_to {
