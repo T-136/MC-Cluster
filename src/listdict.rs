@@ -1,7 +1,7 @@
 use fnv::FnvBuildHasher;
 use fnv::FnvHashMap;
+use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
-use rand_chacha::ChaCha20Rng;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -45,7 +45,7 @@ impl ListDict {
         }
     }
 
-    pub fn choose_random_item(&self, rng_choose: &mut ChaCha20Rng) -> (u32, u32) {
+    pub fn choose_random_item(&self, rng_choose: &mut SmallRng) -> (u32, u32) {
         self.items.choose(rng_choose).unwrap().clone()
     }
 

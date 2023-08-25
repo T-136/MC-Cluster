@@ -3,6 +3,7 @@ use chemfiles::{Atom, Frame, Trajectory, UnitCell};
 use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
+use rand::rngs::SmallRng;
 use rand_chacha::ChaCha20Rng;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
@@ -191,16 +192,17 @@ impl Simulation {
     }
 
     pub fn run(&mut self, mut amount_unique_levels: i32) -> Results {
-        let mut rng_choose = ChaCha20Rng::from_entropy();
-        let choose_seed: [u8; 32] = rng_choose.get_seed();
+        let mut rng_choose = SmallRng::from_entropy();
+        // let choose_seed: [u8; 32] = rng_choose.get_seed();
+        //
 
-        let mut rng_e_number = ChaCha20Rng::from_entropy();
-        let e_number_seed: [u8; 32] = rng_e_number.get_seed();
+        // let mut rng_e_number = SmallRng::from_entropy();
+        // let e_number_seed: [u8; 32] = rng_e_number.get_seed();
 
         let seed = sim::Seed {
             rust: "used rust".to_string(),
-            choose_seed,
-            e_number_seed,
+            choose_seed: [0; 32],
+            e_number_seed: [0; 32],
         };
 
         // let mut trajectory: Option<Trajectory>;
@@ -274,7 +276,7 @@ impl Simulation {
 
             let energy1000_diff = self.energy_diff(move_from, move_to);
 
-            if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_e_number, iiter) {
+            if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_choose, iiter) {
                 self.perform_move(move_from, move_to, energy1000_diff);
                 self.update_possible_moves(move_from, move_to)
             }
@@ -485,7 +487,7 @@ impl Simulation {
     fn is_acceptance_criteria_fulfilled(
         &mut self,
         energy1000_diff: i64,
-        rng_e_number: &mut ChaCha20Rng,
+        rng_e_number: &mut SmallRng,
         iiter: u64,
     ) -> bool {
         const KB: f64 = 8.6173324e-5;
