@@ -537,8 +537,11 @@ impl Simulation {
     }
 
     fn update_possible_moves(&mut self, move_from: u32, move_to: u32) {
+        self.possible_moves.remove_item(move_from, move_to);
         for neighbor_atom in self.nn[&move_from] {
-            self.possible_moves.remove_item(move_from, neighbor_atom);
+            if self.occ[neighbor_atom as usize] == 0 {
+                self.possible_moves.remove_item(move_from, neighbor_atom);
+            }
             if self.occ[neighbor_atom as usize] == 1 {
                 // greater than one because of neighbor moving in this spot
                 if self.cn_metal[move_from as usize] > 1 {
@@ -548,7 +551,9 @@ impl Simulation {
         }
 
         for empty_neighbor in self.nn[&move_to] {
-            self.possible_moves.remove_item(empty_neighbor, move_to);
+            if self.occ[empty_neighbor as usize] == 1 {
+                self.possible_moves.remove_item(empty_neighbor, move_to);
+            }
             if self.occ[empty_neighbor as usize] == 0 {
                 // greater than one because of neighbor moving in this spot
                 if self.cn_metal[empty_neighbor as usize] > 1 {
