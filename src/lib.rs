@@ -205,29 +205,19 @@ impl Simulation {
             e_number_seed: [0; 32],
         };
 
-        // let mut trajectory: Option<Trajectory>;
-
-        // if let Some(_) = self.trajectory_frequency {
-        //     trajectory = Some(
-        //         Trajectory::open(self.save_folder.clone() + "/total_time_traj.xyz", 'w').unwrap(),
-        //     );
-        // } else {
-        //     trajectory = None;
-        // }
-
-        let mut trajectory_last_frames: Option<Trajectory>;
-        if let Some(i) = self.last_frames_trajectory_amount {
-            let range = i * self.last_traj_frequency;
-            trajectory_last_frames = Some(
-                Trajectory::open(
-                    self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
-                    'w',
+        let mut trajectory_last_frames: Option<Trajectory> =
+            if let Some(i) = self.last_frames_trajectory_amount {
+                let range = i * self.last_traj_frequency;
+                Some(
+                    Trajectory::open(
+                        self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
+                        'w',
+                    )
+                    .unwrap(),
                 )
-                .unwrap(),
-            );
-        } else {
-            trajectory_last_frames = None;
-        }
+            } else {
+                None
+            };
 
         let mut lowest_energy_struct: sim::LowestEnergy = sim::LowestEnergy {
             energy: f64::INFINITY,
@@ -237,10 +227,6 @@ impl Simulation {
         };
         let mut temp_energy_section: i64 = 0;
         let mut temp_cn_dict_section: [u64; CN + 1] = [0; CN + 1];
-
-        // for k in 1..13 {
-        //     temp_cn_dict_section.insert(k, 0);
-        // }
 
         let start_energy = self.total_energy_1000 as f64 / 1000.;
 
@@ -344,29 +330,29 @@ impl Simulation {
 
             if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
                 let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
-                match self.unique_levels.entry(cn_btree) {
-                    std::collections::hash_map::Entry::Occupied(mut entry) => {
-                        let (_, x) = entry.get_mut();
-                        *x += 1;
-                    }
-                    std::collections::hash_map::Entry::Vacant(entry) => {
-                        if *amount_unique_levels == 1 {
-                            eprint!("amount_unique_levels reached");
-                        }
-                        *amount_unique_levels -= 1;
-                        entry.insert((self.total_energy_1000 / 1000, 1));
-                    }
-                }
-                // self.unique_levels
-                //     .entry(cn_btree)
-                //     .and_modify(|(_, x)| *x += 1)
-                //     .or_insert_with(|| {
+                // match self.unique_levels.entry(cn_btree) {
+                //     std::collections::hash_map::Entry::Occupied(mut entry) => {
+                //         let (_, x) = entry.get_mut();
+                //         *x += 1;
+                //     }
+                //     std::collections::hash_map::Entry::Vacant(entry) => {
                 //         if *amount_unique_levels == 1 {
                 //             eprint!("amount_unique_levels reached");
                 //         }
                 //         *amount_unique_levels -= 1;
-                //         (self.total_energy_1000 / 1000, 1)
-                //     });
+                //         entry.insert((self.total_energy_1000 / 1000, 1));
+                //     }
+                // }
+                if *amount_unique_levels == 1 {
+                    eprint!("amount_unique_levels reached");
+                }
+                self.unique_levels
+                    .entry(cn_btree)
+                    .and_modify(|(_, x)| *x += 1)
+                    .or_insert_with(|| {
+                        *amount_unique_levels -= 1;
+                        (self.total_energy_1000 / 1000, 1)
+                    });
             }
         }
         if (iiter + 1) % section_size == 0 {
@@ -377,10 +363,6 @@ impl Simulation {
 
             let mut section: HashMap<u8, f64> = HashMap::new();
             for (k, list) in temp_cn_dict_section.iter_mut().enumerate() {
-                // let mut temp_cn_summ = 0;
-                // for v1 in list.into_iter() {
-                //     temp_cn_summ += v1.clone();
-                // }
                 section.insert(k as u8, *list as f64 / section_size as f64);
                 // list.clear();
                 *list = 0;
@@ -424,7 +406,6 @@ impl Simulation {
     fn write_trajectorys(
         &self,
         iiter: &u64,
-        // trajectory_option: &mut Option<Trajectory>,
         trajectory_last_frames_option: &mut Option<Trajectory>,
     ) {
         if let Some(traj_last_frames) = trajectory_last_frames_option {
@@ -435,11 +416,6 @@ impl Simulation {
                 self.write_traj(traj_last_frames);
             }
         }
-        // if let Some(trajectory) = trajectory_option {
-        //     if self.niter - iiter > self.last_frames_trajectory.unwrap_or(0) && iiter % 100 == 0 {
-        //         self.write_traj(trajectory);
-        //     }
-        // }
     }
 
     fn write_traj(&self, trajectory: &mut Trajectory) {

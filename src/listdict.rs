@@ -49,14 +49,14 @@ impl ListDict {
         self.items.choose(rng_choose).unwrap().clone()
     }
 
+    pub fn iter(&self) -> std::slice::Iter<'_, (u32, u32)> {
+        self.items.iter()
+    }
+
     // pub fn contains(&self, move_from: u32, move_to: u32) -> bool {
     //     self.item_to_position
     //         .contains_key(&(move_from as u64 + ((move_to as u64) << 32)))
     // }
-
-    pub fn iter(&self) -> std::slice::Iter<'_, (u32, u32)> {
-        self.items.iter()
-    }
 
     // pub fn remove_by_index(&mut self, index: usize) {
     //     self.item_to_position.remove(&self.items.swap_remove(index));
