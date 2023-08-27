@@ -5,6 +5,7 @@ use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
 use rand_chacha::ChaCha20Rng;
+use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
@@ -24,7 +25,7 @@ const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 
-const GRID_SIZE: [u32; 3] = [17, 17, 17];
+const GRID_SIZE: [u32; 3] = [15, 15, 15];
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -207,18 +208,27 @@ impl Simulation {
         };
 
         let mut trajectory_last_frames: Option<Trajectory> =
-            if let Some(i) = self.last_frames_trajectory_amount {
+            self.last_frames_trajectory_amount.clone().map(|i| {
                 let range = i * self.last_traj_frequency;
-                Some(
-                    Trajectory::open(
-                        self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
-                        'w',
-                    )
-                    .unwrap(),
+                Trajectory::open(
+                    self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
+                    'w',
                 )
-            } else {
-                None
-            };
+                .unwrap()
+            });
+
+        // if let Some(i) = self.last_frames_trajectory_amount {
+        //     let range = i * self.last_traj_frequency;
+        //     Some(
+        //         Trajectory::open(
+        //             self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
+        //             'w',
+        //         )
+        //         .unwrap(),
+        //     )
+        // } else {
+        //     None
+        // };
 
         let mut lowest_energy_struct: sim::LowestEnergy = sim::LowestEnergy {
             energy: f64::INFINITY,
@@ -258,6 +268,7 @@ impl Simulation {
                     iiter,
                     (iiter as f64 / self.niter as f64 * 100.)
                 );
+                println!("{:?}", self.possible_moves.len());
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
@@ -333,29 +344,29 @@ impl Simulation {
 
             if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
                 let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
-                // match self.unique_levels.entry(cn_btree) {
-                //     std::collections::hash_map::Entry::Occupied(mut entry) => {
-                //         let (_, x) = entry.get_mut();
-                //         *x += 1;
-                //     }
-                //     std::collections::hash_map::Entry::Vacant(entry) => {
-                //         if *amount_unique_levels == 1 {
-                //             eprint!("amount_unique_levels reached");
-                //         }
-                //         *amount_unique_levels -= 1;
-                //         entry.insert((self.total_energy_1000 / 1000, 1));
-                //     }
-                // }
-                if *amount_unique_levels == 1 {
-                    eprint!("amount_unique_levels reached");
-                }
-                self.unique_levels
-                    .entry(cn_btree)
-                    .and_modify(|(_, x)| *x += 1)
-                    .or_insert_with(|| {
+                match self.unique_levels.entry(cn_btree) {
+                    Entry::Occupied(mut entry) => {
+                        let (_, x) = entry.get_mut();
+                        *x += 1;
+                    }
+                    Entry::Vacant(entry) => {
+                        if *amount_unique_levels == 1 {
+                            eprint!("amount_unique_levels reached");
+                        }
                         *amount_unique_levels -= 1;
-                        (self.total_energy_1000 / 1000, 1)
-                    });
+                        entry.insert((self.total_energy_1000 / 1000, 1));
+                    }
+                }
+                // if *amount_unique_levels == 1 {
+                //     eprint!("amount_unique_levels reached");
+                // }
+                // self.unique_levels
+                //     .entry(cn_btree)
+                //     .and_modify(|(_, x)| *x += 1)
+                //     .or_insert_with(|| {
+                //         *amount_unique_levels -= 1;
+                //         (self.total_energy_1000 / 1000, 1)
+                //     });
             }
         }
         if (iiter + 1) % section_size == 0 {
@@ -495,20 +506,29 @@ impl Simulation {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
+        // let nn_intersection: Vec<u32> = self.nn[&move_from]
+        //     .into_iter()
+        //     .filter(|x| self.nn[&move_to].contains(x))
+        //     .collect();
+
         self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         for o in self.nn[&move_from] {
+            // if !nn_intersection.contains(&o) {
             if self.occ[o as usize] == 1 && o != move_to {
                 self.cn_dict[self.cn_metal[o as usize]] -= 1;
                 self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
             }
             self.cn_metal[o as usize] -= 1;
+            // }
         }
         for o in self.nn[&move_to] {
+            // if !nn_intersection.contains(&o) {
             if self.occ[o as usize] == 1 && o != move_from {
                 self.cn_dict[self.cn_metal[o as usize]] -= 1;
                 self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
             }
             self.cn_metal[o as usize] += 1;
+            // }
         }
         self.cn_dict[self.cn_metal[move_to as usize]] += 1;
 
