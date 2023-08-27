@@ -21,14 +21,15 @@ impl ListDict {
     }
 
     pub fn add_item(&mut self, move_from: u32, move_to: u32) {
-        if let std::collections::hash_map::Entry::Vacant(e) = self
+        match self
             .item_to_position
             .entry(move_from as u64 + ((move_to as u64) << 32))
         {
-            self.items.push((move_from, move_to));
-            e.insert(self.items.len() - 1);
-        } else {
-            return;
+            std::collections::hash_map::Entry::Vacant(e) => {
+                self.items.push((move_from, move_to));
+                e.insert(self.items.len() - 1);
+            }
+            _ => return,
         }
     }
     pub fn remove_item(&mut self, move_from: u32, move_to: u32) {

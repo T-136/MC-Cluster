@@ -22,6 +22,7 @@ pub use sim::Results;
 
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
+const AMOUNT_SECTIONS: usize = 10000;
 
 const GRID_SIZE: [u32; 3] = [17, 17, 17];
 
@@ -161,8 +162,8 @@ impl Simulation {
             )
         });
 
-        let cn_dict_sections = Vec::new();
-        let energy_sections_list = Vec::new();
+        let cn_dict_sections = Vec::with_capacity(AMOUNT_SECTIONS);
+        let energy_sections_list = Vec::with_capacity(AMOUNT_SECTIONS);
         let unique_levels = HashMap::new();
 
         Simulation {
@@ -248,7 +249,7 @@ impl Simulation {
                 // &mut trajectory_lowest_energy,
             );
         }
-        let section_size: u64 = self.niter / 10000;
+        let section_size: u64 = self.niter / AMOUNT_SECTIONS as u64;
 
         for iiter in 0..self.niter {
             if iiter % section_size == 0 {
@@ -315,12 +316,14 @@ impl Simulation {
         amount_unique_levels: &mut i32,
         section_size: u64,
     ) -> i64 {
+        // if (iiter + 1) % 4 == 0 {
         temp_energy_section_1000 += self.total_energy_1000;
 
         temp_cn_dict_section
             .iter_mut()
             .enumerate()
             .for_each(|(i, v)| *v += self.cn_dict[i] as u64);
+        // }
 
         if *amount_unique_levels != 0 {
             let mut cn_hash_map = HashMap::new();
