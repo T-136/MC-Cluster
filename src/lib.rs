@@ -268,7 +268,7 @@ impl Simulation {
                     iiter,
                     (iiter as f64 / self.niter as f64 * 100.)
                 );
-                println!("{:?}", self.possible_moves.len());
+                // println!("{:?}", self.possible_moves.len());
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
@@ -544,7 +544,7 @@ impl Simulation {
             if self.occ[neighbor_atom as usize] == 1 {
                 // greater than one because of neighbor moving in this spot
                 if self.cn_metal[move_from as usize] > 1 {
-                    self.possible_moves.add_item(neighbor_atom, move_from)
+                    self.possible_moves.add_item(neighbor_atom, move_from);
                 }
             }
         }
@@ -556,7 +556,7 @@ impl Simulation {
             if self.occ[empty_neighbor as usize] == 0 {
                 // greater than one because of neighbor moving in this spot
                 if self.cn_metal[empty_neighbor as usize] > 1 {
-                    self.possible_moves.add_item(move_to, empty_neighbor)
+                    self.possible_moves.add_item(move_to, empty_neighbor);
                 }
             }
         }
