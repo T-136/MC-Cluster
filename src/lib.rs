@@ -27,6 +27,8 @@ const SAVE_TH: u64 = 1000;
 
 const GRID_SIZE: [u32; 3] = [15, 15, 15];
 
+const VARIANT_A: bool = true;
+
 #[derive(Clone)]
 pub struct Simulation {
     niter: u64,
@@ -293,8 +295,24 @@ impl Simulation {
 
             let energy1000_diff = self.energy_diff(move_from, move_to);
 
+            if VARIANT_A && iiter as f64 == self.niter as f64 * self.optimization_cut_off_perc {
+                for o in 0..self.cn_metal.len() {
+                    let mut neighbors: u8 = 0;
+                    for o1 in self.nn[&(o as u32)].iter() {
+                        if self.occ[*o1 as usize] == 1 {
+                            // cn.entry(o).and_modify(|x| *x += 1).or_insert(1);
+                            neighbors += 1;
+                        }
+                    }
+                    self.cn_metal.push(neighbors as usize);
+                    if self.occ[o as usize] == 1 {
+                        self.cn_dict[self.cn_metal[o as usize] as usize] += 1;
+                    };
+                }
+            }
+
             if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_choose, iiter) {
-                self.perform_move(move_from, move_to, energy1000_diff);
+                self.perform_move(move_from, move_to, energy1000_diff, iiter);
                 self.update_possible_moves(move_from, move_to)
             }
 
@@ -506,7 +524,7 @@ impl Simulation {
         }
         let acceptance_temp = self.calculate_current_temp(iiter);
         let between = Uniform::new_inclusive(0., 1.);
-        // let delta_energy = proposed_energy - self.total_energy_1000;
+        // let delta_energy = proposed_energy - self.total_energy_1000
         let rand_value = between.sample(rng_e_number);
         (rand_value) < ((-energy1000_diff as f64 / 1000.) / (KB * acceptance_temp)).exp()
     }
@@ -518,7 +536,7 @@ impl Simulation {
             - (2 * ((self.cn_metal[move_from as usize] as i64) * M_BETA + M_ALPHA))
     }
 
-    fn perform_move(&mut self, move_from: u32, move_to: u32, energy1000_diff: i64) {
+    fn perform_move(&mut self, move_from: u32, move_to: u32, energy1000_diff: i64, iiter: u64) {
         self.occ[move_to as usize] = self.occ[move_from as usize]; // covers different alloys also
         self.occ[move_from as usize] = 0;
 
@@ -533,20 +551,24 @@ impl Simulation {
         self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         for o in self.nn[&move_from] {
             // if !nn_intersection.contains(&o) {
-            if self.occ[o as usize] == 1 && o != move_to {
-                self.cn_dict[self.cn_metal[o as usize]] -= 1;
-                self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
+            if VARIANT_A && iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+                if self.occ[o as usize] == 1 && o != move_to {
+                    self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                    self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
+                }
+                self.cn_metal[o as usize] -= 1;
             }
-            self.cn_metal[o as usize] -= 1;
             // }
         }
         for o in self.nn[&move_to] {
             // if !nn_intersection.contains(&o) {
-            if self.occ[o as usize] == 1 && o != move_from {
-                self.cn_dict[self.cn_metal[o as usize]] -= 1;
-                self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
+            if VARIANT_A && iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+                if self.occ[o as usize] == 1 && o != move_from {
+                    self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                    self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
+                }
+                self.cn_metal[o as usize] += 1;
             }
-            self.cn_metal[o as usize] += 1;
             // }
         }
         self.cn_dict[self.cn_metal[move_to as usize]] += 1;
