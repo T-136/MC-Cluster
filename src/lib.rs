@@ -4,7 +4,6 @@ use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
-use rand_chacha::ChaCha20Rng;
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
@@ -24,6 +23,7 @@ pub use sim::Results;
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
+const SAVE_TH: u64 = 1000;
 
 const GRID_SIZE: [u32; 3] = [15, 15, 15];
 
@@ -140,17 +140,33 @@ impl Simulation {
             }
         }
 
-        let simulation_folder_name = if let Some(start_temp) = start_temperature {
-            std::format!(
-                "{}-{}K_{}I_{}A",
-                start_temp,
-                temperature,
-                niter,
-                onlyocc.len()
-            )
-        } else {
-            std::format!("{}K_{}I_{}A", temperature, niter, onlyocc.len())
+        let simulation_folder_name = match start_temperature {
+            Some(start_temp) => {
+                std::format!(
+                    "{}-{}K_{}I_{}A",
+                    start_temp,
+                    temperature,
+                    niter,
+                    onlyocc.len()
+                )
+            }
+            None => std::format!("{}K_{}I_{}A", temperature, niter, onlyocc.len()),
         };
+
+        // let mut sub_folder = start_temperature
+        //     .map_or(
+        //         std::format!("{}K_{}I_{}A", temperature, niter, onlyocc.len()),
+        //         |start_temp| {
+        //             std::format!(
+        //                 "{}-{}K_{}I_{}A",
+        //                 start_temp,
+        //                 temperature,
+        //                 niter,
+        //                 onlyocc.len()
+        //             )
+        //         },
+        //     )
+        //     .map(&save_folder_name);
 
         let mut sub_folder = save_folder_name + &simulation_folder_name;
 
@@ -260,6 +276,9 @@ impl Simulation {
             );
         }
         let section_size: u64 = self.niter / AMOUNT_SECTIONS as u64;
+        println!("section_size: {}", section_size);
+        println!("SAVE_TH: {}", SAVE_TH);
+        println!("niter: {}", self.niter);
 
         for iiter in 0..self.niter {
             if iiter % section_size == 0 {
@@ -287,7 +306,7 @@ impl Simulation {
                 )
             }
 
-            self.write_trajectorys(
+            self.cond_last_frams_traj_write(
                 &iiter,
                 // &mut xyz,
                 // &mut trajectory,
@@ -327,14 +346,14 @@ impl Simulation {
         amount_unique_levels: &mut i32,
         section_size: u64,
     ) -> i64 {
-        // if (iiter + 1) % 4 == 0 {
-        temp_energy_section_1000 += self.total_energy_1000;
+        if (iiter + 1) % SAVE_TH == 0 {
+            temp_energy_section_1000 += self.total_energy_1000;
 
-        temp_cn_dict_section
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, v)| *v += self.cn_dict[i] as u64);
-        // }
+            temp_cn_dict_section
+                .iter_mut()
+                .enumerate()
+                .for_each(|(i, v)| *v += self.cn_dict[i] as u64);
+        }
 
         if *amount_unique_levels != 0 {
             let mut cn_hash_map = HashMap::new();
@@ -371,7 +390,7 @@ impl Simulation {
         }
         if (iiter + 1) % section_size == 0 {
             self.energy_sections_list
-                .push(temp_energy_section_1000 as f64 / section_size as f64 / 1000.);
+                .push(temp_energy_section_1000 as f64 / (section_size / SAVE_TH) as f64 / 1000.);
             temp_energy_section_1000 = 0;
             // temp_energy_section.clear();
 
@@ -417,7 +436,7 @@ impl Simulation {
         };
     }
 
-    fn write_trajectorys(
+    fn cond_last_frams_traj_write(
         &self,
         iiter: &u64,
         trajectory_last_frames_option: &mut Option<Trajectory>,
