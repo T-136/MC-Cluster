@@ -52,7 +52,7 @@ pub struct Simulation {
     temperature: f64,
     cn_dict_sections: Vec<HashMap<u8, f64>>,
     energy_sections_list: Vec<f64>,
-    optimization_cut_off_perc: f64,
+    optimization_cut_off_fraction: Vec<u64>,
     unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
 }
 
@@ -72,7 +72,7 @@ impl Simulation {
         last_frames_trajectory_amount: Option<u64>,
         bulk_file_name: String,
         repetition: usize,
-        optimization_cut_off_perc: f64,
+        optimization_cut_off_fraction: Vec<u64>,
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
@@ -206,7 +206,7 @@ impl Simulation {
             temperature,
             cn_dict_sections,
             energy_sections_list,
-            optimization_cut_off_perc,
+            optimization_cut_off_fraction,
             unique_levels,
         }
     }
@@ -218,6 +218,8 @@ impl Simulation {
 
         // let mut rng_e_number = SmallRng::from_entropy();
         // let e_number_seed: [u8; 32] = rng_e_number.get_seed();
+        let cut_off_perc = self.optimization_cut_off_fraction[0] as f64
+            / self.optimization_cut_off_fraction[1] as f64;
 
         let seed = sim::Seed {
             rust: "used rust".to_string(),
@@ -295,7 +297,10 @@ impl Simulation {
 
             let energy1000_diff = self.energy_diff(move_from, move_to);
 
-            if VARIANT_A && iiter as f64 == self.niter as f64 * self.optimization_cut_off_perc {
+            if VARIANT_A
+                && iiter * self.optimization_cut_off_fraction[1]
+                    == self.niter * self.optimization_cut_off_fraction[0]
+            {
                 for o in 0..self.cn_metal.len() {
                     let mut neighbors: u8 = 0;
                     for o1 in self.nn[&(o as u32)].iter() {
@@ -311,12 +316,19 @@ impl Simulation {
                 }
             }
 
-            if self.is_acceptance_criteria_fulfilled(energy1000_diff, &mut rng_choose, iiter) {
+            if self.is_acceptance_criteria_fulfilled(
+                energy1000_diff,
+                &mut rng_choose,
+                iiter,
+                cut_off_perc,
+            ) {
                 self.perform_move(move_from, move_to, energy1000_diff, iiter);
                 self.update_possible_moves(move_from, move_to)
             }
 
-            if iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+            if iiter * self.optimization_cut_off_fraction[1]
+                >= self.niter * self.optimization_cut_off_fraction[0]
+            {
                 self.save_lowest_energy(
                     &iiter,
                     &mut lowest_energy_struct,
@@ -379,7 +391,9 @@ impl Simulation {
                 cn_hash_map.insert(i as u8, v);
             }
 
-            if *iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+            if *iiter * self.optimization_cut_off_fraction[0]
+                >= self.niter * self.optimization_cut_off_fraction[0]
+            {
                 let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
                 match self.unique_levels.entry(cn_btree) {
                     Entry::Occupied(mut entry) => {
@@ -486,24 +500,23 @@ impl Simulation {
             .unwrap_or_else(|x| eprintln!("{}", x));
     }
 
-    fn calculate_current_temp(&self, iiter: u64) -> f64 {
+    fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
         let heating_temp = 5500.;
-        let cut_off = self.optimization_cut_off_perc;
         if self.start_temperature.is_some() {
-            if (iiter + 1) as f64 <= self.niter as f64 * cut_off {
+            if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp
-                    - ((iiter + 1) as f64 / (self.niter as f64 * cut_off))
+                    - ((iiter + 1) as f64 / (self.niter as f64 * cut_off_perc))
                         * (heating_temp - self.start_temperature.unwrap())
             } else {
                 self.start_temperature.unwrap()
-                    - ((iiter + 1) as f64 - self.niter as f64 * cut_off)
-                        / (self.niter as f64 * (1. - cut_off))
+                    - ((iiter + 1) as f64 - self.niter as f64 * cut_off_perc)
+                        / (self.niter as f64 * (1. - cut_off_perc))
                         * (self.start_temperature.unwrap() - self.temperature)
             }
         } else {
-            if (iiter + 1) as f64 <= self.niter as f64 * cut_off {
+            if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp
-                    - (iiter as f64 / (self.niter as f64 * cut_off))
+                    - (iiter as f64 / (self.niter as f64 * cut_off_perc))
                         * (heating_temp - self.temperature)
             } else {
                 self.temperature
@@ -516,13 +529,14 @@ impl Simulation {
         energy1000_diff: i64,
         rng_e_number: &mut SmallRng,
         iiter: u64,
+        cut_off_perc: f64,
     ) -> bool {
         const KB: f64 = 8.6173324e-5;
         // if self.start_temperature.is_some() {
         if energy1000_diff < 0 {
             return true;
         }
-        let acceptance_temp = self.calculate_current_temp(iiter);
+        let acceptance_temp = self.calculate_current_temp(iiter, cut_off_perc);
         let between = Uniform::new_inclusive(0., 1.);
         // let delta_energy = proposed_energy - self.total_energy_1000
         let rand_value = between.sample(rng_e_number);
@@ -551,24 +565,30 @@ impl Simulation {
         self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         for o in self.nn[&move_from] {
             // if !nn_intersection.contains(&o) {
-            if VARIANT_A && iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+            if VARIANT_A
+                && iiter * self.optimization_cut_off_fraction[1]
+                    >= self.niter * self.optimization_cut_off_fraction[0]
+            {
                 if self.occ[o as usize] == 1 && o != move_to {
                     self.cn_dict[self.cn_metal[o as usize]] -= 1;
                     self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
                 }
-                self.cn_metal[o as usize] -= 1;
             }
+            self.cn_metal[o as usize] -= 1;
             // }
         }
         for o in self.nn[&move_to] {
             // if !nn_intersection.contains(&o) {
-            if VARIANT_A && iiter as f64 >= self.niter as f64 * self.optimization_cut_off_perc {
+            if VARIANT_A
+                && iiter * self.optimization_cut_off_fraction[1]
+                    >= self.niter * self.optimization_cut_off_fraction[0]
+            {
                 if self.occ[o as usize] == 1 && o != move_from {
                     self.cn_dict[self.cn_metal[o as usize]] -= 1;
                     self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
                 }
-                self.cn_metal[o as usize] += 1;
             }
+            self.cn_metal[o as usize] += 1;
             // }
         }
         self.cn_dict[self.cn_metal[move_to as usize]] += 1;

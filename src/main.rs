@@ -18,6 +18,19 @@ fn fmt_scient(num: &str) -> u64 {
         * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
 }
 
+fn fmt_fraction(fraction_str: &str) -> [u32; 2] {
+    let mut parts = fraction_str.split('/');
+
+    let mut fraction: [u32; 2] = [0; 2];
+    fraction[0] = parts.next().unwrap().parse::<u32>().unwrap();
+    fraction[1] = parts.next().unwrap().parse::<u32>().unwrap();
+    if parts.next().is_some() {
+        panic!("wrong optimization_cut_off_perc input");
+    };
+
+    fraction
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -56,8 +69,8 @@ struct Args {
     #[arg(short, long, default_value_t = 1)]
     write_trajectory_frequency: u64,
 
-    #[arg(short, long, default_value_t = 0.50)]
-    optimization_cut_off_perc: f64,
+    #[arg(short, long, value_delimiter = '/', default_values_t = vec!(1,2))]
+    optimization_cut_off_fraction: Vec<u64>,
 
     #[arg(short, long, allow_hyphen_values = true)]
     unique_levels: i32,
@@ -97,7 +110,7 @@ fn main() {
     let last_traj_frequency: u64 = args.write_trajectory_frequency;
     let last_frames_trajectory_amount: Option<u64> = args.last_frames_xyz;
     let bulk_file_name: String = args.core_file;
-    let optimization_cut_off_perc: f64 = args.optimization_cut_off_perc;
+    let optimization_cut_off_fraction: Vec<u64> = args.optimization_cut_off_fraction;
 
     let repetition = args.repetition;
 
@@ -110,7 +123,7 @@ fn main() {
         // let nnn_pairlist_file = nnn_pairlist_file.clone();
         let atom_sites = atom_sites.clone();
         let bulk_file_name = bulk_file_name.clone();
-        // let optimization_cut_off_perc = optimization_cut_off_perc.clone();
+        let optimization_cut_off_fraction = optimization_cut_off_fraction.clone();
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
                 niter,
@@ -127,7 +140,7 @@ fn main() {
                 last_frames_trajectory_amount,
                 bulk_file_name,
                 rep,
-                optimization_cut_off_perc,
+                optimization_cut_off_fraction,
             );
             let exp = sim.run(unique_levels);
             sim.write_exp_file(&exp);
