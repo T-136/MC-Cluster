@@ -291,6 +291,7 @@ impl Simulation {
                     iiter,
                     (iiter as f64 / self.niter as f64 * 100.)
                 );
+                // println!("len possible_moves: {}", self.possible_moves.len());
                 // println!("{:?}", self.possible_moves.len());
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
