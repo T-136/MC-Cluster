@@ -4,6 +4,11 @@ use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
+fn regan_pairing(a: u32, b: u64) -> u64 {
+    // (a + b) * (a + b + 1) / 2 + a
+    2_u64.pow(a) * (2 * b + 1) - 1
+}
+
 #[derive(Clone)]
 pub struct ListDict {
     item_to_position: HashMap<u64, usize, FnvBuildHasher>,
@@ -23,7 +28,7 @@ impl ListDict {
     pub fn add_item(&mut self, move_from: u32, move_to: u32) {
         match self
             .item_to_position
-            .entry(move_from as u64 + ((move_to as u64) << 32))
+            .entry(regan_pairing(move_from, move_to as u64))
         {
             std::collections::hash_map::Entry::Vacant(e) => {
                 self.items.push((move_from, move_to));
@@ -35,13 +40,13 @@ impl ListDict {
     pub fn remove_item(&mut self, move_from: u32, move_to: u32) {
         if let Some(position) = self
             .item_to_position
-            .remove(&(move_from as u64 + ((move_to as u64) << 32)))
+            .remove(&(regan_pairing(move_from, move_to as u64)))
         {
             let (move_from, move_to) = self.items.pop().unwrap();
             if position != self.items.len() {
                 self.items[position] = (move_from, move_to);
                 self.item_to_position
-                    .insert(move_from as u64 + ((move_to as u64) << 32), position);
+                    .insert(regan_pairing(move_from, move_to as u64), position);
             }
         }
     }
