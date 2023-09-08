@@ -4,26 +4,29 @@ use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
-fn pairing_function(a: u64, b: u64) -> u64 {
-    (a + b) * (a + b + 1) / 2 + a
+fn pairing_function(a: u64, b: u64) -> usize {
+    // ((a + b) * (a + b + 1) / 2 + a) as usize
     // 2_u64.pow(a) * (2 * b + 1) - 1
-    // if a >= b {
-    //     a * a + a + b
-    // } else {
-    //     a + b * b
-    // }
+    if a >= b {
+        (a * a + a + b) as usize
+    } else {
+        (a + b * b) as usize
+    }
 }
 
 #[derive(Clone)]
 pub struct ListDict {
-    item_to_position: HashMap<u64, usize, FnvBuildHasher>,
+    item_to_position: Vec<Option<usize>>,
     items: Vec<(u32, u32)>,
 }
 
 impl ListDict {
     pub fn new() -> ListDict {
-        let item_to_position: HashMap<u64, usize, FnvBuildHasher> =
-            FnvHashMap::with_capacity_and_hasher(32000, Default::default());
+        let largest_atom_position = 15_u64.pow(3) * 4;
+        // println!("max size: {}", largest_atom_position);
+        let size_vec = pairing_function(largest_atom_position, largest_atom_position);
+        // println!("max size: {}", size_vec);
+        let item_to_position = vec![None; size_vec];
         ListDict {
             item_to_position,
             items: Vec::with_capacity(32000),
@@ -33,26 +36,34 @@ impl ListDict {
     pub fn add_item(&mut self, move_from: u32, move_to: u32) {
         match self
             .item_to_position
-            .entry(pairing_function(move_from as u64, move_to as u64))
+            .get_mut(pairing_function(move_from as u64, move_to as u64))
+            .unwrap()
         {
-            std::collections::hash_map::Entry::Vacant(e) => {
-                self.items.push((move_from, move_to));
-                e.insert(self.items.len() - 1);
+            Some(_) => {
+                return;
             }
-            _ => return,
+            None => {
+                self.items.push((move_from, move_to));
+                self.item_to_position[pairing_function(move_from as u64, move_to as u64)] =
+                    Some(self.items.len() - 1);
+            }
         }
     }
     pub fn remove_item(&mut self, move_from: u32, move_to: u32) {
-        if let Some(position) = self
-            .item_to_position
-            .remove(&(pairing_function(move_from as u64, move_to as u64)))
+        if let Some(position) =
+            self.item_to_position[pairing_function(move_from as u64, move_to as u64)]
         {
-            let (move_from, move_to) = self.items.pop().unwrap();
+            let (move_from_new, move_to_new) = self.items.pop().unwrap();
             if position != self.items.len() {
-                self.items[position] = (move_from, move_to);
-                self.item_to_position
-                    .insert(pairing_function(move_from as u64, move_to as u64), position);
+                self.items[position] = (move_from_new, move_to_new);
+                if let Some(e) = self
+                    .item_to_position
+                    .get_mut(pairing_function(move_from_new as u64, move_to_new as u64))
+                {
+                    *e = Some(position)
+                };
             }
+            self.item_to_position[pairing_function(move_from as u64, move_to as u64)] = None;
         }
     }
 
