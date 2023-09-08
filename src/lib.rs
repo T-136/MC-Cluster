@@ -125,7 +125,7 @@ impl Simulation {
         // let mut former_energy_dict: fnv::FnvHashMap<u32, i64> =
         //     fnv::FnvHashMap::with_capacity_and_hasher(nsites as usize, Default::default());
         let mut total_energy_1000: i64 = 0;
-        let mut possible_moves: listdict::ListDict = listdict::ListDict::new();
+        let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
         for o in onlyocc.iter() {
             let energy_1000: i64 = sim::energy_calculation(o, &cn_metal);
             total_energy_1000 += energy_1000;
@@ -154,21 +154,6 @@ impl Simulation {
             }
             None => std::format!("{}K_{}I_{}A", temperature, niter, onlyocc.len()),
         };
-
-        // let mut sub_folder = start_temperature
-        //     .map_or(
-        //         std::format!("{}K_{}I_{}A", temperature, niter, onlyocc.len()),
-        //         |start_temp| {
-        //             std::format!(
-        //                 "{}-{}K_{}I_{}A",
-        //                 start_temp,
-        //                 temperature,
-        //                 niter,
-        //                 onlyocc.len()
-        //             )
-        //         },
-        //     )
-        //     .map(&save_folder_name);
 
         let mut sub_folder = save_folder_name + &simulation_folder_name;
 
