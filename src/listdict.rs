@@ -24,7 +24,7 @@ impl ListDict {
         let item_to_position = vec![None; size_vec];
         ListDict {
             move_to_position: item_to_position,
-            moves_list: Vec::with_capacity((largest_atom_position * 6) as usize),
+            moves_list: Vec::with_capacity((largest_atom_position * 3) as usize),
         }
     }
 

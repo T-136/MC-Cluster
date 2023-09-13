@@ -25,7 +25,7 @@ const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [15, 15, 15];
+const GRID_SIZE: [u32; 3] = [20, 20, 20];
 
 const VARIANT_A: bool = true;
 
@@ -287,15 +287,11 @@ impl Simulation {
                 && iiter * self.optimization_cut_off_fraction[1]
                     == self.niter * self.optimization_cut_off_fraction[0]
             {
+                self.cn_dict.iter_mut().for_each(|x| {
+                    *x = 0;
+                });
+                assert_eq!(self.cn_dict, [0; CN + 1]);
                 for o in 0..self.cn_metal.len() {
-                    let mut neighbors: u8 = 0;
-                    for o1 in self.nn[&(o as u32)].iter() {
-                        if self.occ[*o1 as usize] == 1 {
-                            // cn.entry(o).and_modify(|x| *x += 1).or_insert(1);
-                            neighbors += 1;
-                        }
-                    }
-                    self.cn_metal.push(neighbors as usize);
                     if self.occ[o as usize] == 1 {
                         self.cn_dict[self.cn_metal[o as usize] as usize] += 1;
                     };
@@ -414,7 +410,7 @@ impl Simulation {
 
             let mut section: HashMap<u8, f64> = HashMap::new();
             for (k, list) in temp_cn_dict_section.iter_mut().enumerate() {
-                section.insert(k as u8, *list as f64 / section_size as f64);
+                section.insert(k as u8, *list as f64 / (section_size / SAVE_TH) as f64);
                 // list.clear();
                 *list = 0;
             }
@@ -548,7 +544,12 @@ impl Simulation {
         //     .filter(|x| self.nn[&move_to].contains(x))
         //     .collect();
 
-        self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
+        if VARIANT_A
+            && iiter * self.optimization_cut_off_fraction[1]
+                >= self.niter * self.optimization_cut_off_fraction[0]
+        {
+            self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
+        }
         for o in self.nn[&move_from] {
             // if !nn_intersection.contains(&o) {
             if VARIANT_A
@@ -577,7 +578,12 @@ impl Simulation {
             self.cn_metal[o as usize] += 1;
             // }
         }
-        self.cn_dict[self.cn_metal[move_to as usize]] += 1;
+        if VARIANT_A
+            && iiter * self.optimization_cut_off_fraction[1]
+                >= self.niter * self.optimization_cut_off_fraction[0]
+        {
+            self.cn_dict[self.cn_metal[move_to as usize]] += 1;
+        }
 
         self.total_energy_1000 += energy1000_diff;
     }
