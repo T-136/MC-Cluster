@@ -21,7 +21,6 @@ mod sim;
 pub use sim::Results;
 
 const CN: usize = 12;
-const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
@@ -39,9 +38,6 @@ pub struct Simulation {
     possible_moves: listdict::ListDict,
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
-    // nn_pair: HashMap<u64, [u32; NN_PAIR_NUMBER], fnv::FnvBuildHasher>,
-    // nnn_pair: HashMap<u64, [u32; 74], fnv::FnvBuildHasher>,
-    // mut xyz: Vec<[f64; 3]>,
     xsites_positions: Vec<[f64; 3]>,
     unit_cell: UnitCell,
     cn_dict: [u32; CN + 1],
@@ -65,8 +61,6 @@ impl Simulation {
         start_temperature: Option<f64>,
         save_folder_name: String,
         pairlist_file: String,
-        nn_pairlist_file: String,
-        // nnn_pairlist_file: String,
         atom_sites: String,
         last_traj_frequency: u64,
         last_frames_trajectory_amount: Option<u64>,
@@ -76,8 +70,6 @@ impl Simulation {
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
-        // let nn_pair = read_files::read_nn_pairlists(&nn_pairlist_file);
-        // let nnn_pair = read_files::read_nnn_pairlists(&nnn_pairlist_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
             panic!(
@@ -122,14 +114,11 @@ impl Simulation {
                 cn_dict[cn_metal[o as usize] as usize] += 1;
             };
         }
-        // let mut former_energy_dict: fnv::FnvHashMap<u32, i64> =
-        //     fnv::FnvHashMap::with_capacity_and_hasher(nsites as usize, Default::default());
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
         for o in onlyocc.iter() {
             let energy_1000: i64 = sim::energy_calculation(o, &cn_metal);
             total_energy_1000 += energy_1000;
-            // former_energy_dict.insert(o.clone(), energy_1000);
 
             for u in &nn[o] {
                 if occ[*u as usize] == 0 {
@@ -179,8 +168,6 @@ impl Simulation {
             possible_moves,
             total_energy_1000,
             nn,
-            // nn_pair,
-            // nnn_pair,
             xsites_positions,
             unit_cell,
             cn_dict,
@@ -222,19 +209,6 @@ impl Simulation {
                 .unwrap()
             });
 
-        // if let Some(i) = self.last_frames_trajectory_amount {
-        //     let range = i * self.last_traj_frequency;
-        //     Some(
-        //         Trajectory::open(
-        //             self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
-        //             'w',
-        //         )
-        //         .unwrap(),
-        //     )
-        // } else {
-        //     None
-        // };
-
         let mut lowest_energy_struct: sim::LowestEnergy = sim::LowestEnergy {
             energy: f64::INFINITY,
             cn_total: HashMap::new(),
@@ -258,11 +232,7 @@ impl Simulation {
         };
 
         if self.niter == 0 {
-            self.save_lowest_energy(
-                &0,
-                &mut lowest_energy_struct,
-                // &mut trajectory_lowest_energy,
-            );
+            self.save_lowest_energy(&0, &mut lowest_energy_struct);
         }
         let section_size: u64 = self.niter / AMOUNT_SECTIONS as u64;
         println!("section_size: {}", section_size);
@@ -276,8 +246,6 @@ impl Simulation {
                     iiter,
                     (iiter as f64 / self.niter as f64 * 100.)
                 );
-                // println!("len possible_moves: {}", self.possible_moves.len());
-                // println!("{:?}", self.possible_moves.len());
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
@@ -311,19 +279,10 @@ impl Simulation {
             if iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
             {
-                self.save_lowest_energy(
-                    &iiter,
-                    &mut lowest_energy_struct,
-                    // &mut trajectory_lowest_energy,
-                )
+                self.save_lowest_energy(&iiter, &mut lowest_energy_struct)
             }
 
-            self.cond_last_frams_traj_write(
-                &iiter,
-                // &mut xyz,
-                // &mut trajectory,
-                &mut trajectory_last_frames,
-            );
+            self.cond_last_frams_traj_write(&iiter, &mut trajectory_last_frames);
             if SAVE_ENTIRE_SIM
                 || iiter * self.optimization_cut_off_fraction[1]
                     >= self.niter * self.optimization_cut_off_fraction[0]
@@ -395,28 +354,16 @@ impl Simulation {
                         entry.insert((self.total_energy_1000 / 1000, 1));
                     }
                 }
-                // if *amount_unique_levels == 1 {
-                //     eprint!("amount_unique_levels reached");
-                // }
-                // self.unique_levels
-                //     .entry(cn_btree)
-                //     .and_modify(|(_, x)| *x += 1)
-                //     .or_insert_with(|| {
-                //         *amount_unique_levels -= 1;
-                //         (self.total_energy_1000 / 1000, 1)
-                //     });
             }
         }
         if (iiter + 1) % section_size == 0 {
             self.energy_sections_list
                 .push(temp_energy_section_1000 as f64 / (section_size / SAVE_TH) as f64 / 1000.);
             temp_energy_section_1000 = 0;
-            // temp_energy_section.clear();
 
             let mut section: HashMap<u8, f64> = HashMap::new();
             for (k, list) in temp_cn_dict_section.iter_mut().enumerate() {
                 section.insert(k as u8, *list as f64 / (section_size / SAVE_TH) as f64);
-                // list.clear();
                 *list = 0;
             }
             assert_eq!(temp_cn_dict_section, &mut [0_u64; CN + 1]);
@@ -519,13 +466,11 @@ impl Simulation {
         cut_off_perc: f64,
     ) -> bool {
         const KB: f64 = 8.6173324e-5;
-        // if self.start_temperature.is_some() {
         if energy1000_diff < 0 {
             return true;
         }
         let acceptance_temp = self.calculate_current_temp(iiter, cut_off_perc);
         let between = Uniform::new_inclusive(0., 1.);
-        // let delta_energy = proposed_energy - self.total_energy_1000
         let rand_value = between.sample(rng_e_number);
         (rand_value) < ((-energy1000_diff as f64 / 1000.) / (KB * acceptance_temp)).exp()
     }
@@ -544,11 +489,6 @@ impl Simulation {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
-        // let nn_intersection: Vec<u32> = self.nn[&move_from]
-        //     .into_iter()
-        //     .filter(|x| self.nn[&move_to].contains(x))
-        //     .collect();
-
         if SAVE_ENTIRE_SIM
             || iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
@@ -556,7 +496,6 @@ impl Simulation {
             self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         }
         for o in self.nn[&move_from] {
-            // if !nn_intersection.contains(&o) {
             if SAVE_ENTIRE_SIM
                 || iiter * self.optimization_cut_off_fraction[1]
                     >= self.niter * self.optimization_cut_off_fraction[0]
@@ -567,10 +506,8 @@ impl Simulation {
                 }
             }
             self.cn_metal[o as usize] -= 1;
-            // }
         }
         for o in self.nn[&move_to] {
-            // if !nn_intersection.contains(&o) {
             if SAVE_ENTIRE_SIM
                 || iiter * self.optimization_cut_off_fraction[1]
                     >= self.niter * self.optimization_cut_off_fraction[0]
@@ -581,7 +518,6 @@ impl Simulation {
                 }
             }
             self.cn_metal[o as usize] += 1;
-            // }
         }
         if SAVE_ENTIRE_SIM
             || iiter * self.optimization_cut_off_fraction[1]

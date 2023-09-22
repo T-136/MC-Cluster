@@ -18,19 +18,6 @@ fn fmt_scient(num: &str) -> u64 {
         * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
 }
 
-fn fmt_fraction(fraction_str: &str) -> [u32; 2] {
-    let mut parts = fraction_str.split('/');
-
-    let mut fraction: [u32; 2] = [0; 2];
-    fraction[0] = parts.next().unwrap().parse::<u32>().unwrap();
-    fraction[1] = parts.next().unwrap().parse::<u32>().unwrap();
-    if parts.next().is_some() {
-        panic!("wrong optimization_cut_off_perc input");
-    };
-
-    fraction
-}
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -119,7 +106,7 @@ fn main() {
         let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let pairlist_file = pairlist_file.clone();
-        let nn_pairlist_file = nn_pairlist_file.clone();
+        // let nn_pairlist_file = nn_pairlist_file.clone();
         // let nnn_pairlist_file = nnn_pairlist_file.clone();
         let atom_sites = atom_sites.clone();
         let bulk_file_name = bulk_file_name.clone();
@@ -133,7 +120,7 @@ fn main() {
                 start_temperature,
                 save_folder,
                 pairlist_file,
-                nn_pairlist_file,
+                // nn_pairlist_file,
                 // nnn_pairlist_file,
                 atom_sites,
                 last_traj_frequency,
