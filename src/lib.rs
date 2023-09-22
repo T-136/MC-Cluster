@@ -27,7 +27,7 @@ const SAVE_TH: u64 = 1000;
 
 const GRID_SIZE: [u32; 3] = [20, 20, 20];
 
-const VARIANT_A: bool = true;
+const SAVE_ENTIRE_SIM: bool = false;
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -283,8 +283,8 @@ impl Simulation {
 
             let energy1000_diff = self.energy_diff(move_from, move_to);
 
-            if VARIANT_A
-                && iiter * self.optimization_cut_off_fraction[1]
+            if SAVE_ENTIRE_SIM
+                || iiter * self.optimization_cut_off_fraction[1]
                     == self.niter * self.optimization_cut_off_fraction[0]
             {
                 self.cn_dict.iter_mut().for_each(|x| {
@@ -324,13 +324,18 @@ impl Simulation {
                 // &mut trajectory,
                 &mut trajectory_last_frames,
             );
-            temp_energy_section = self.save_sections(
-                &iiter,
-                temp_energy_section,
-                &mut temp_cn_dict_section,
-                &mut amount_unique_levels,
-                section_size,
-            );
+            if SAVE_ENTIRE_SIM
+                || iiter * self.optimization_cut_off_fraction[1]
+                    >= self.niter * self.optimization_cut_off_fraction[0]
+            {
+                temp_energy_section = self.save_sections(
+                    &iiter,
+                    temp_energy_section,
+                    &mut temp_cn_dict_section,
+                    &mut amount_unique_levels,
+                    section_size,
+                );
+            }
         }
 
         Results {
@@ -483,7 +488,7 @@ impl Simulation {
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
-        let heating_temp = 5500.;
+        let heating_temp = 4000.;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp
@@ -544,16 +549,16 @@ impl Simulation {
         //     .filter(|x| self.nn[&move_to].contains(x))
         //     .collect();
 
-        if VARIANT_A
-            && iiter * self.optimization_cut_off_fraction[1]
+        if SAVE_ENTIRE_SIM
+            || iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
         {
             self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         }
         for o in self.nn[&move_from] {
             // if !nn_intersection.contains(&o) {
-            if VARIANT_A
-                && iiter * self.optimization_cut_off_fraction[1]
+            if SAVE_ENTIRE_SIM
+                || iiter * self.optimization_cut_off_fraction[1]
                     >= self.niter * self.optimization_cut_off_fraction[0]
             {
                 if self.occ[o as usize] == 1 && o != move_to {
@@ -566,8 +571,8 @@ impl Simulation {
         }
         for o in self.nn[&move_to] {
             // if !nn_intersection.contains(&o) {
-            if VARIANT_A
-                && iiter * self.optimization_cut_off_fraction[1]
+            if SAVE_ENTIRE_SIM
+                || iiter * self.optimization_cut_off_fraction[1]
                     >= self.niter * self.optimization_cut_off_fraction[0]
             {
                 if self.occ[o as usize] == 1 && o != move_from {
@@ -578,8 +583,8 @@ impl Simulation {
             self.cn_metal[o as usize] += 1;
             // }
         }
-        if VARIANT_A
-            && iiter * self.optimization_cut_off_fraction[1]
+        if SAVE_ENTIRE_SIM
+            || iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
         {
             self.cn_dict[self.cn_metal[move_to as usize]] += 1;
