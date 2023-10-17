@@ -1,63 +1,66 @@
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
+use std::collections::HashMap;
 
-fn pairing_function(a: u32, b: u32) -> usize {
+fn pairing_function(a: u64, b: u64) -> u64 {
     // ((a + b) * (a + b + 1) / 2 + a) as usize
     // 2_u64.pow(a) * (2 * b + 1) - 1
     if a >= b {
-        (a * a + a + b) as usize
+        (a * a + a + b)
     } else {
-        (a + b * b) as usize
+        (a + b * b)
     }
 }
 
 #[derive(Clone)]
 pub struct ListDict {
-    move_to_position: Vec<Option<usize>>,
-    moves_list: Vec<(u32, u32)>,
+    move_to_position: HashMap<u64, usize, fnv::FnvBuildHasher>,
+    moves: Vec<(u32, u32)>,
 }
 
 impl ListDict {
     pub fn new(grid_size: [u32; 3]) -> ListDict {
         let largest_atom_position = grid_size[0] * grid_size[1] * grid_size[2] * 4;
-        let size_vec = pairing_function(largest_atom_position, largest_atom_position);
-        println!("vec size: {}", size_vec);
-        let item_to_position = vec![None; size_vec];
+        let item_to_position: HashMap<u64, usize, fnv::FnvBuildHasher> =
+            fnv::FnvHashMap::with_capacity_and_hasher(32000, Default::default());
         ListDict {
             move_to_position: item_to_position,
-            moves_list: Vec::with_capacity((largest_atom_position * 3) as usize),
+            moves: Vec::with_capacity((largest_atom_position * 3) as usize),
         }
     }
 
     pub fn add_item(&mut self, move_from: u32, move_to: u32) {
-        if self.move_to_position[pairing_function(move_from, move_to)].is_none() {
-            self.moves_list.push((move_from, move_to));
-            self.move_to_position[pairing_function(move_from, move_to)] =
-                Some(self.moves_list.len() - 1);
+        match self
+            .move_to_position
+            .entry(pairing_function(move_from as u64, move_to as u64))
+        {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                self.moves.push((move_from, move_to));
+                e.insert(self.moves.len() - 1);
+            }
+            _ => return,
         }
     }
     pub fn remove_item(&mut self, move_from: u32, move_to: u32) {
-        if let Some(position) = self.move_to_position[pairing_function(move_from, move_to)] {
-            let (move_from_new, move_to_new) = self.moves_list.pop().unwrap();
-            if position != self.moves_list.len() {
-                self.moves_list[position] = (move_from_new, move_to_new);
-                if let Some(move_index) = self
-                    .move_to_position
-                    .get_mut(pairing_function(move_from_new, move_to_new))
-                {
-                    *move_index = Some(position)
-                };
+        if let Some(position) = self
+            .move_to_position
+            .remove(&(pairing_function(move_from as u64, move_to as u64)))
+        {
+            let (move_from, move_to) = self.moves.pop().unwrap();
+            if position != self.moves.len() {
+                self.moves[position] = (move_from, move_to);
+                self.move_to_position
+                    .insert(pairing_function(move_from as u64, move_to as u64), position);
             }
-            self.move_to_position[pairing_function(move_from, move_to)] = None;
         }
     }
 
     pub fn choose_random_item(&self, rng_choose: &mut SmallRng) -> (u32, u32) {
-        self.moves_list.choose(rng_choose).unwrap().clone()
+        self.moves.choose(rng_choose).unwrap().clone()
     }
 
     pub fn iter(&self) -> std::slice::Iter<'_, (u32, u32)> {
-        self.moves_list.iter()
+        self.moves.iter()
     }
 
     // pub fn contains(&self, move_from: u32, move_to: u32) -> bool {
@@ -91,6 +94,6 @@ impl ListDict {
     // }
 
     pub fn _len(&self) -> usize {
-        self.moves_list.len()
+        self.moves.len()
     }
 }
