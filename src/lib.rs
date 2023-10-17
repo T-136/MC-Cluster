@@ -13,7 +13,7 @@ use std::{cmp, eprint, fs, println};
 use vasp_poscar::Poscar;
 
 // mod build_pairs;
-mod energy_change;
+// mod energy_change;
 mod listdict;
 mod read_files;
 mod setup;
@@ -38,7 +38,7 @@ pub struct Simulation {
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     cn_metal: Vec<usize>,
     possible_moves: listdict::ListDict,
-    energy_change: energy_change::EnergyChange,
+    // energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
     xsites_positions: Vec<[f64; 3]>,
@@ -161,7 +161,6 @@ impl Simulation {
         let cn_dict_sections = Vec::with_capacity(AMOUNT_SECTIONS);
         let energy_sections_list = Vec::with_capacity(AMOUNT_SECTIONS);
         let unique_levels = HashMap::new();
-        let energy_change = energy_change::EnergyChange::new();
 
         Simulation {
             niter,
@@ -170,7 +169,6 @@ impl Simulation {
             onlyocc,
             cn_metal,
             possible_moves,
-            energy_change,
             total_energy_1000,
             nn,
             xsites_positions,
