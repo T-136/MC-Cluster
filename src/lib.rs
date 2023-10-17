@@ -21,6 +21,7 @@ mod sim;
 pub use sim::Results;
 
 const CN: usize = 12;
+const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
@@ -337,7 +338,7 @@ impl Simulation {
                 cn_hash_map.insert(i as u8, v);
             }
 
-            if *iiter * self.optimization_cut_off_fraction[0]
+            if *iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
             {
                 let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
@@ -435,7 +436,7 @@ impl Simulation {
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
-        let heating_temp = 4000.;
+        let heating_temp = 5500.;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp

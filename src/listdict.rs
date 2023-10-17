@@ -21,6 +21,7 @@ impl ListDict {
     pub fn new(grid_size: [u32; 3]) -> ListDict {
         let largest_atom_position = grid_size[0] * grid_size[1] * grid_size[2] * 4;
         let size_vec = pairing_function(largest_atom_position, largest_atom_position);
+        println!("vec size: {}", size_vec);
         let item_to_position = vec![None; size_vec];
         ListDict {
             move_to_position: item_to_position,

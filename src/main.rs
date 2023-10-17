@@ -8,7 +8,7 @@ fn fmt_scient(num: &str) -> u64 {
     let mut parts = num.split(['e', 'E']);
 
     let pre_num = parts.next().unwrap();
-    let exp = parts.next().unwrap_or(&"0");
+    let exp = parts.next().unwrap_or("0");
     if parts.next().is_some() {
         panic!("wrong iterations input");
     }
