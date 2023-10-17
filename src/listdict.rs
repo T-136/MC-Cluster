@@ -32,7 +32,7 @@ impl ListDict {
     pub fn add_item(&mut self, move_from: u32, move_to: u32) {
         match self
             .move_to_position
-            .entry(pairing_function(move_from as u64, move_to as u64))
+            .entry((move_from as u64 + ((move_to as u64) << 32)))
         {
             std::collections::hash_map::Entry::Vacant(e) => {
                 self.moves.push((move_from, move_to));
@@ -44,13 +44,13 @@ impl ListDict {
     pub fn remove_item(&mut self, move_from: u32, move_to: u32) {
         if let Some(position) = self
             .move_to_position
-            .remove(&(pairing_function(move_from as u64, move_to as u64)))
+            .remove(&(move_from as u64 + ((move_to as u64) << 32)))
         {
             let (move_from, move_to) = self.moves.pop().unwrap();
             if position != self.moves.len() {
                 self.moves[position] = (move_from, move_to);
                 self.move_to_position
-                    .insert(pairing_function(move_from as u64, move_to as u64), position);
+                    .insert((move_from as u64 + ((move_to as u64) << 32)), position);
             }
         }
     }
