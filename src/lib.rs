@@ -14,6 +14,7 @@ use vasp_poscar::Poscar;
 
 // mod build_pairs;
 // mod energy_change;
+mod energy;
 mod listdict;
 mod read_files;
 mod setup;
@@ -26,7 +27,7 @@ const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [20, 20, 20];
+const GRID_SIZE: [u32; 3] = [30, 30, 30];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -120,7 +121,7 @@ impl Simulation {
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
         for o in onlyocc.iter() {
-            let energy_1000: i64 = sim::energy_calculation(o, &cn_metal);
+            let energy_1000: i64 = energy::energy_calculation(o, &cn_metal);
             total_energy_1000 += energy_1000;
 
             for u in &nn[o] {
@@ -252,7 +253,10 @@ impl Simulation {
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            let energy1000_diff = self.energy_diff(move_from, move_to);
+            let energy1000_diff = energy::energy_diff(
+                self.cn_metal[move_from as usize],
+                self.cn_metal[move_to as usize],
+            );
 
             if SAVE_ENTIRE_SIM
                 || iiter * self.optimization_cut_off_fraction[1]
@@ -476,13 +480,6 @@ impl Simulation {
         let between = Uniform::new_inclusive(0., 1.);
         let rand_value = between.sample(rng_e_number);
         (rand_value) < ((-energy1000_diff as f64 / 1000.) / (KB * acceptance_temp)).exp()
-    }
-
-    pub fn energy_diff(&self, move_from: u32, move_to: u32) -> i64 {
-        const M_BETA: i64 = -0330;
-        const M_ALPHA: i64 = 3960;
-        (2 * ((self.cn_metal[move_to as usize] as i64 - 1) * M_BETA + M_ALPHA))
-            - (2 * ((self.cn_metal[move_from as usize] as i64) * M_BETA + M_ALPHA))
     }
 
     fn perform_move(&mut self, move_from: u32, move_to: u32, energy1000_diff: i64, iiter: u64) {

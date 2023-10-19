@@ -44,7 +44,7 @@ struct Args {
     #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
     repetition: Vec<usize>,
 
-    #[arg(short, long, default_value_t = String::from("../202020-pair"))]
+    #[arg(short, long, default_value_t = String::from("../303030-pair"))]
     grid_folder: String,
 
     #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]

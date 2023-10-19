@@ -3,9 +3,6 @@ use serde_with::serde_as;
 // use std::collections::HashMap;
 use std::collections::{BTreeMap, HashMap};
 
-const M_BETA: i64 = -0330;
-const M_ALPHA: i64 = 3960;
-
 // const KB: f64 = 8.6173324e-5;
 
 #[derive(Serialize, Deserialize)]
@@ -49,9 +46,4 @@ where
 {
     let ordered: BTreeMap<_, _> = value.iter().collect();
     ordered.serialize(serializer)
-}
-
-pub fn energy_calculation(atom: &u32, cn: &Vec<usize>) -> i64 {
-    let energy_1000 = cn[*atom as usize] as i64 * M_BETA + M_ALPHA;
-    energy_1000
 }
