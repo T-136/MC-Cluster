@@ -121,7 +121,7 @@ impl Simulation {
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
         for o in onlyocc.iter() {
-            let energy_1000: i64 = energy::energy_calculation(o, &cn_metal);
+            let energy_1000: i64 = energy::energy_1000_calculation(o, &cn_metal);
             total_energy_1000 += energy_1000;
 
             for u in &nn[o] {
