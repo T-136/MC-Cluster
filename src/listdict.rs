@@ -14,15 +14,16 @@ fn pairing_function(a: u64, b: u64) -> u64 {
 
 #[derive(Clone)]
 pub struct ListDict {
-    move_to_position: HashMap<u64, usize, fnv::FnvBuildHasher>,
+    move_to_position: HashMap<u64, usize, ahash::RandomState>,
     moves: Vec<(u32, u32)>,
 }
 
 impl ListDict {
     pub fn new(grid_size: [u32; 3]) -> ListDict {
         let largest_atom_position = grid_size[0] * grid_size[1] * grid_size[2] * 4;
-        let item_to_position: HashMap<u64, usize, fnv::FnvBuildHasher> =
-            fnv::FnvHashMap::with_capacity_and_hasher(32000, Default::default());
+        let item_to_position: HashMap<u64, usize, ahash::RandomState> = HashMap::default();
+        // let item_to_position: HashMap<u64, usize, fnv::FnvBuildHasher> =
+        //     fnv::FnvHashMap::with_capacity_and_hasher(32000, Default::default());
         ListDict {
             move_to_position: item_to_position,
             moves: Vec::with_capacity((largest_atom_position * 3) as usize),
