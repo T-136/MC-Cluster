@@ -32,7 +32,7 @@ struct Args {
     folder: String,
 
     /// iterations
-    #[arg(short, long)]
+    #[arg(short, long, default_value_t = String::from("1e9"))]
     iterations: String,
 
     #[arg(short, long, default_value_t = 300.)]
@@ -44,7 +44,7 @@ struct Args {
     #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
     repetition: Vec<usize>,
 
-    #[arg(short, long, default_value_t = String::from("../303030-pair"))]
+    #[arg(short, long, default_value_t = String::from("../111-pair"))]
     grid_folder: String,
 
     #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]
@@ -59,7 +59,7 @@ struct Args {
     #[arg(short, long, value_delimiter = '/', default_values_t = vec!(1,2))]
     optimization_cut_off_fraction: Vec<u64>,
 
-    #[arg(short, long, allow_hyphen_values = true)]
+    #[arg(short, long, allow_hyphen_values = true, default_value_t = 0)]
     unique_levels: i32,
 }
 
@@ -80,7 +80,8 @@ fn main() {
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
     let start_temperature: Option<f64> = args.begin_temperature;
-    let atoms_input = args.atoms_input;
+    // let atoms_input = args.atoms_input;
+    let atoms_input = Some(2000);
     let unique_levels = args.unique_levels;
     if !std::path::Path::new(&save_folder).exists() {
         fs::create_dir_all(&save_folder).unwrap();
@@ -108,7 +109,7 @@ fn main() {
         let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let pairlist_file = pairlist_file.clone();
-        // let nn_pairlist_file = nn_pairlist_file.clone();
+        let nn_pairlist_file = nn_pairlist_file.clone();
         // let nnn_pairlist_file = nnn_pairlist_file.clone();
         let atom_sites = atom_sites.clone();
         let bulk_file_name = bulk_file_name.clone();
@@ -122,7 +123,7 @@ fn main() {
                 start_temperature,
                 save_folder,
                 pairlist_file,
-                // nn_pairlist_file,
+                nn_pairlist_file,
                 // nnn_pairlist_file,
                 atom_sites,
                 last_traj_frequency,

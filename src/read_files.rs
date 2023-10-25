@@ -73,6 +73,32 @@ pub fn read_nn(pairlist_file: &str) -> HashMap<u32, [u32; super::CN], FnvBuildHa
     nn
 }
 
+pub fn read_pairlists(nn_pairlist_file: &str) -> Vec<u64> {
+    let nn_pairlist =
+        fs::File::open(nn_pairlist_file).expect("Should have been able to read the file");
+
+    let lines = io::BufReader::new(nn_pairlist);
+
+    let mut nn_pair: Vec<u64> = Vec::new();
+
+    for line in lines.lines() {
+        let r = line.unwrap();
+        let test: Vec<&str> = r.split_whitespace().clone().collect();
+        let lower_number_site: u32 = std::cmp::min(
+            test[0].parse::<u32>().unwrap(),
+            test[1].parse::<u32>().unwrap(),
+        );
+        let higher_number_site: u32 = std::cmp::max(
+            test[0].parse::<u32>().unwrap(),
+            test[1].parse::<u32>().unwrap(),
+        );
+
+        nn_pair.push(lower_number_site as u64 + ((higher_number_site as u64) << 32));
+        nn_pair.push(higher_number_site as u64 + ((lower_number_site as u64) << 32));
+    }
+
+    return nn_pair;
+}
 pub fn read_nn_pairlists(
     nn_pairlist_file: &str,
 ) -> HashMap<u64, [u32; super::NN_PAIR_NUMBER], FnvBuildHasher> {

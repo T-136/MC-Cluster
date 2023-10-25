@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 ahash = "0.8.3"
 anyhow = "1.0.70"
+boomphf = "0.6.0"
 chemfiles = "0.10.3"
 clap = { version = "4.2.1", features = ["derive"] }
 fnv = "1.0.7"

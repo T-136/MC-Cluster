@@ -27,7 +27,7 @@ const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [30, 30, 30];
+const GRID_SIZE: [u32; 3] = [11, 11, 11];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -65,6 +65,7 @@ impl Simulation {
         start_temperature: Option<f64>,
         save_folder_name: String,
         pairlist_file: String,
+        nn_pairlist_file: String,
         atom_sites: String,
         last_traj_frequency: u64,
         last_frames_trajectory_amount: Option<u64>,
@@ -74,6 +75,7 @@ impl Simulation {
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
+        let nn_pairlist = read_files::read_pairlists(&nn_pairlist_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
             panic!(
@@ -119,7 +121,8 @@ impl Simulation {
             };
         }
         let mut total_energy_1000: i64 = 0;
-        let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
+        let mut possible_moves: listdict::ListDict =
+            listdict::ListDict::new(GRID_SIZE, nn_pairlist);
         for o in onlyocc.iter() {
             let energy_1000: i64 = energy::energy_1000_calculation(o, &cn_metal);
             total_energy_1000 += energy_1000;
@@ -242,6 +245,7 @@ impl Simulation {
         println!("section_size: {}", section_size);
         println!("SAVE_TH: {}", SAVE_TH);
         println!("niter: {}", self.niter);
+        println!("len: {}", self.possible_moves._len());
 
         for iiter in 0..self.niter {
             if iiter % section_size == 0 {
@@ -251,6 +255,8 @@ impl Simulation {
                     (iiter as f64 / self.niter as f64 * 100.)
                 );
             }
+            // println!("moves vec len {:?}", self.possible_moves._len());
+            // println!("hasmap some count{:?}", self.possible_moves.count_hashmap());
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
             let energy1000_diff = energy::energy_diff(
