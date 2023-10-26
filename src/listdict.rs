@@ -1,4 +1,4 @@
-use boomphf::hashmap::BoomHashMap;
+use boomphf::Mphf;
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -15,56 +15,57 @@ fn pairing_function(a: u64, b: u64) -> u64 {
 
 #[derive(Clone)]
 pub struct ListDict {
-    move_to_position: BoomHashMap<u64, Option<usize>>,
+    move_to_position: Vec<Option<usize>>,
     moves: Vec<(u32, u32)>,
+    phf: Mphf<u64>,
 }
 
 impl ListDict {
     pub fn new(grid_size: [u32; 3], nn_pairlist: Vec<u64>) -> ListDict {
         let largest_atom_position = grid_size[0] * grid_size[1] * grid_size[2] * 4;
-        let nn_pairlist_balues: Vec<Option<usize>> = vec![None; nn_pairlist.len()];
+        // let nn_pairlist_values: Vec<Option<usize>> = vec![None; nn_pairlist.len()];
+        let phf = Mphf::new_parallel(1000000.0, &nn_pairlist, None);
 
         // let phf = Mphf::new(1.7, &nn_pairlist);
-        let item_to_position: BoomHashMap<u64, Option<usize>> =
-            BoomHashMap::new(nn_pairlist, nn_pairlist_balues);
+        let item_to_position: Vec<Option<usize>> = vec![None; nn_pairlist.len()];
 
         // let item_to_position: HashMap<u64, usize, fnv::FnvBuildHasher> =
         //     fnv::FnvHashMap::with_capacity_and_hasher(32000, Default::default());
         ListDict {
             move_to_position: item_to_position,
             moves: Vec::with_capacity((largest_atom_position * 3) as usize),
+            phf,
         }
     }
 
     pub fn add_item(&mut self, move_from: u32, move_to: u32) {
-        let x = self
-            .move_to_position
-            .get_mut(&(move_from as u64 + ((move_to as u64) << 32)))
-            .unwrap();
-        if x.is_none() {
+        let index = self
+            .phf
+            .hash(&(move_from as u64 + ((move_to as u64) << 32))) as usize;
+
+        if self.move_to_position[index].is_none() {
             self.moves.push((move_from, move_to));
-            *x = Some(self.moves.len() - 1);
+            self.move_to_position[index] = Some(self.moves.len() - 1);
         }
     }
 
     pub fn remove_item(&mut self, move_from: u32, move_to: u32) {
-        let new_position = match self
-            .move_to_position
-            .get(&(move_from as u64 + ((move_to as u64) << 32)))
-            .unwrap()
-        {
+        let index = self
+            .phf
+            .hash(&(move_from as u64 + ((move_to as u64) << 32))) as usize;
+        let new_position = match self.move_to_position[index] {
             Some(position) => {
                 let (new_move_from, new_move_to) = self.moves.pop().unwrap();
-                if *position != self.moves.len() {
-                    if *position > self.moves.len() {
+                if position != self.moves.len() {
+                    if position > self.moves.len() {
                         println!("{}", self.moves.len());
                         println!(
                             "{:?}",
                             self.moves.iter().position(|&x| x == ((move_from, move_to)))
                         );
                     }
-                    self.moves[*position] = (new_move_from, new_move_to);
-                    Some((*position, new_move_from, new_move_to))
+                    self.moves[position] = (new_move_from, new_move_to);
+                    Some((position, new_move_from, new_move_to))
                     // self.move_to_position
                     //     .get_mut(&(move_from as u64 + ((move_to as u64) << 32)))
                     //     .map(|val| *val = Some(*position));
@@ -74,21 +75,13 @@ impl ListDict {
             }
             _ => return,
         };
-        let val = self
-            .move_to_position
-            .get_mut(&(move_from as u64 + ((move_to as u64) << 32)))
-            .unwrap();
-        {
-            *val = None
-        }
+        self.move_to_position[index] = None;
         if let Some((pos, new_move_from, new_move_to)) = new_position {
-            if let Some(val) = self
-                .move_to_position
-                .get_mut(&(new_move_from as u64 + ((new_move_to as u64) << 32)))
-                .unwrap()
-            {
-                *val = pos
-            }
+            let new_index = self
+                .phf
+                .hash(&(new_move_from as u64 + ((new_move_to as u64) << 32)))
+                as usize;
+            self.move_to_position[new_index] = Some(pos);
         }
 
         // println!(
@@ -102,17 +95,17 @@ impl ListDict {
         // );
     }
 
-    pub fn count_hashmap(&self) -> u32 {
-        let mut count = 0;
-        // println!("{:?}", self.move_to_position);
-        for (x, v) in self.move_to_position.iter() {
-            // println!("n1 {:?}", v);
-            if v.is_some() {
-                count += 1;
-            }
-        }
-        count
-    }
+    // pub fn count_hashmap(&self) -> u32 {
+    //     let mut count = 0;
+    //     // println!("{:?}", self.move_to_position);
+    //     for (x, v) in self.move_to_position.iter() {
+    //         // println!("n1 {:?}", v);
+    //         if v.is_some() {
+    //             count += 1;
+    //         }
+    //     }
+    //     count
+    // }
 
     pub fn choose_random_item(&self, rng_choose: &mut SmallRng) -> (u32, u32) {
         self.moves.choose(rng_choose).unwrap().clone()
