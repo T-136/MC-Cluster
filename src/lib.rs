@@ -54,6 +54,8 @@ pub struct Simulation {
     energy_sections_list: Vec<f64>,
     optimization_cut_off_fraction: Vec<u64>,
     unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
+    heat_map: Vec<u64>,
+    heat_map_sections: Vec<Vec<u64>>,
 }
 
 impl Simulation {
@@ -162,6 +164,8 @@ impl Simulation {
         let cn_dict_sections = Vec::with_capacity(AMOUNT_SECTIONS);
         let energy_sections_list = Vec::with_capacity(AMOUNT_SECTIONS);
         let unique_levels = HashMap::new();
+        let heat_map: Vec<u64> = Vec::with_capacity(nsites as usize);
+        let heat_map_sections: Vec<Vec<u64>> = Vec::new();
 
         Simulation {
             niter,
@@ -184,6 +188,8 @@ impl Simulation {
             energy_sections_list,
             optimization_cut_off_fraction,
             unique_levels,
+            heat_map,
+            heat_map_sections,
         }
     }
 
@@ -252,6 +258,9 @@ impl Simulation {
                 );
                 // println!("{:?}", self.cn_metal);
             }
+            let recording_sections = iiter * self.optimization_cut_off_fraction[1]
+                >= self.niter * self.optimization_cut_off_fraction[0];
+
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
             let energy1000_diff = energy::energy_diff(
@@ -279,7 +288,13 @@ impl Simulation {
                 iiter,
                 cut_off_perc,
             ) {
-                self.perform_move(move_from, move_to, energy1000_diff, iiter);
+                self.perform_move(
+                    move_from,
+                    move_to,
+                    energy1000_diff,
+                    iiter,
+                    recording_sections,
+                );
                 self.update_possible_moves(move_from, move_to)
             }
 
@@ -291,10 +306,7 @@ impl Simulation {
             }
 
             self.cond_last_frams_traj_write(&iiter, &mut trajectory_last_frames);
-            if SAVE_ENTIRE_SIM
-                || iiter * self.optimization_cut_off_fraction[1]
-                    >= self.niter * self.optimization_cut_off_fraction[0]
-            {
+            if SAVE_ENTIRE_SIM || recording_sections {
                 temp_energy_section = self.save_sections(
                     &iiter,
                     temp_energy_section,
@@ -484,25 +496,25 @@ impl Simulation {
         (rand_value) < ((-energy1000_diff as f64 / 1000.) / (KB * acceptance_temp)).exp()
     }
 
-    fn perform_move(&mut self, move_from: u32, move_to: u32, energy1000_diff: i64, iiter: u64) {
+    fn perform_move(
+        &mut self,
+        move_from: u32,
+        move_to: u32,
+        energy1000_diff: i64,
+        iiter: u64,
+        recording_sections: bool,
+    ) {
         self.occ[move_to as usize] = self.occ[move_from as usize]; // covers different alloys also
         self.occ[move_from as usize] = 0;
 
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
-        // println!("before perform move: {:?}", self.cn_dict);
-        if SAVE_ENTIRE_SIM
-            || iiter * self.optimization_cut_off_fraction[1]
-                >= self.niter * self.optimization_cut_off_fraction[0]
-        {
+        if SAVE_ENTIRE_SIM || recording_sections {
             self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         }
         for o in self.nn[&move_from] {
-            if SAVE_ENTIRE_SIM
-                || iiter * self.optimization_cut_off_fraction[1]
-                    >= self.niter * self.optimization_cut_off_fraction[0]
-            {
+            if SAVE_ENTIRE_SIM || recording_sections {
                 if self.occ[o as usize] == 1 && o != move_to {
                     self.cn_dict[self.cn_metal[o as usize]] -= 1;
                     self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
@@ -511,10 +523,7 @@ impl Simulation {
             self.cn_metal[o as usize] -= 1;
         }
         for o in self.nn[&move_to] {
-            if SAVE_ENTIRE_SIM
-                || iiter * self.optimization_cut_off_fraction[1]
-                    >= self.niter * self.optimization_cut_off_fraction[0]
-            {
+            if SAVE_ENTIRE_SIM || recording_sections {
                 if self.occ[o as usize] == 1 && o != move_from {
                     self.cn_dict[self.cn_metal[o as usize]] -= 1;
                     self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
@@ -522,10 +531,7 @@ impl Simulation {
             }
             self.cn_metal[o as usize] += 1;
         }
-        if SAVE_ENTIRE_SIM
-            || iiter * self.optimization_cut_off_fraction[1]
-                >= self.niter * self.optimization_cut_off_fraction[0]
-        {
+        if SAVE_ENTIRE_SIM || recording_sections {
             self.cn_dict[self.cn_metal[move_to as usize]] += 1;
         }
 
