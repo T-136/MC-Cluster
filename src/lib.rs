@@ -250,6 +250,7 @@ impl Simulation {
                     iiter,
                     (iiter as f64 / self.niter as f64 * 100.)
                 );
+                // println!("{:?}", self.cn_metal);
             }
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
@@ -258,14 +259,13 @@ impl Simulation {
                 self.cn_metal[move_to as usize],
             );
 
-            if SAVE_ENTIRE_SIM
-                || iiter * self.optimization_cut_off_fraction[1]
+            if !SAVE_ENTIRE_SIM
+                && iiter * self.optimization_cut_off_fraction[1]
                     == self.niter * self.optimization_cut_off_fraction[0]
             {
                 self.cn_dict.iter_mut().for_each(|x| {
                     *x = 0;
                 });
-                assert_eq!(self.cn_dict, [0; CN + 1]);
                 for o in 0..self.cn_metal.len() {
                     if self.occ[o as usize] == 1 {
                         self.cn_dict[self.cn_metal[o as usize] as usize] += 1;
@@ -283,8 +283,9 @@ impl Simulation {
                 self.update_possible_moves(move_from, move_to)
             }
 
-            if iiter * self.optimization_cut_off_fraction[1]
-                >= self.niter * self.optimization_cut_off_fraction[0]
+            if iiter * self.optimization_cut_off_fraction[1] * 2
+                >= self.niter * self.optimization_cut_off_fraction[0] * 3
+            // if iiter + 1 == self.niter
             {
                 self.save_lowest_energy(&iiter, &mut lowest_energy_struct)
             }
@@ -426,6 +427,7 @@ impl Simulation {
 
     fn write_traj(&self, trajectory: &mut Trajectory) {
         let mut xyz: Vec<[f64; 3]> = Vec::new();
+        // println!("{:?}", self.onlyocc);
         for (j, ii) in self.onlyocc.iter().enumerate() {
             xyz.insert(j, self.xsites_positions[ii.clone() as usize]);
         }
@@ -442,7 +444,7 @@ impl Simulation {
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
-        let heating_temp = 5500.;
+        let heating_temp = 3000.;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp
@@ -489,6 +491,7 @@ impl Simulation {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
+        // println!("before perform move: {:?}", self.cn_dict);
         if SAVE_ENTIRE_SIM
             || iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
