@@ -29,11 +29,11 @@ fn ciobacia_table(cn: usize) -> i64 {
 }
 
 pub fn energy_1000_calculation(atom: &u32, cn: &Vec<usize>) -> i64 {
-    ciobacia_table(cn[*atom as usize])
-    // cn[*atom as usize] as i64 * M_BETA + M_ALPHA
+    // ciobacia_table(cn[*atom as usize])
+    cn[*atom as usize] as i64 * M_BETA + M_ALPHA
 }
 
 pub fn energy_diff(cn_from: usize, cn_to: usize) -> i64 {
-    2 * ciobacia_table(cn_to) - 2 * ciobacia_table(cn_from)
-    // (2 * ((cn_to as i64 - 1) * M_BETA + M_ALPHA)) - (2 * ((cn_from as i64) * M_BETA + M_ALPHA))
+    // 2 * ciobacia_table(cn_to) - 2 * ciobacia_table(cn_from)
+    (2 * ((cn_to as i64 - 1) * M_BETA + M_ALPHA)) - (2 * ((cn_from as i64) * M_BETA + M_ALPHA))
 }

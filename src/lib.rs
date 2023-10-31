@@ -1,5 +1,6 @@
 use anyhow;
 use chemfiles::{Atom, Frame, Trajectory, UnitCell};
+use csv::Writer;
 use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
@@ -9,7 +10,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::{cmp, eprint, fs, println};
+use std::{cmp, eprint, fs, println, usize};
 use vasp_poscar::Poscar;
 
 // mod build_pairs;
@@ -164,7 +165,7 @@ impl Simulation {
         let cn_dict_sections = Vec::with_capacity(AMOUNT_SECTIONS);
         let energy_sections_list = Vec::with_capacity(AMOUNT_SECTIONS);
         let unique_levels = HashMap::new();
-        let heat_map: Vec<u64> = Vec::with_capacity(nsites as usize);
+        let heat_map: Vec<u64> = vec![0; nsites as usize];
         let heat_map_sections: Vec<Vec<u64>> = Vec::new();
 
         Simulation {
@@ -258,7 +259,7 @@ impl Simulation {
                 );
                 // println!("{:?}", self.cn_metal);
             }
-            let recording_sections = iiter * self.optimization_cut_off_fraction[1]
+            let is_recording_sections = iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0];
 
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
@@ -288,15 +289,11 @@ impl Simulation {
                 iiter,
                 cut_off_perc,
             ) {
-                self.perform_move(
-                    move_from,
-                    move_to,
-                    energy1000_diff,
-                    iiter,
-                    recording_sections,
-                );
-                self.update_possible_moves(move_from, move_to)
+                self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
+                self.update_possible_moves(move_from, move_to);
+                self.heat_map[move_to as usize] += 1;
             }
+            self.cond_write_heat_map_section(&iiter);
 
             if iiter * self.optimization_cut_off_fraction[1] * 2
                 >= self.niter * self.optimization_cut_off_fraction[0] * 3
@@ -306,7 +303,7 @@ impl Simulation {
             }
 
             self.cond_last_frams_traj_write(&iiter, &mut trajectory_last_frames);
-            if SAVE_ENTIRE_SIM || recording_sections {
+            if SAVE_ENTIRE_SIM || is_recording_sections {
                 temp_energy_section = self.save_sections(
                     &iiter,
                     temp_energy_section,
@@ -316,6 +313,15 @@ impl Simulation {
                 );
             }
         }
+        println!("heatmap section len: {:?}", self.heat_map_sections.len());
+        let mut wtr = Writer::from_path(self.save_folder.clone() + "/heat_map.csv").unwrap();
+        wtr.write_record(self.heat_map.iter().map(|x| x.to_string()))
+            .unwrap();
+        for heat_section in &self.heat_map_sections {
+            wtr.write_record(heat_section.iter().map(|x| x.to_string()))
+                .unwrap();
+        }
+        wtr.flush().unwrap();
 
         Results {
             start,
@@ -501,8 +507,7 @@ impl Simulation {
         move_from: u32,
         move_to: u32,
         energy1000_diff: i64,
-        iiter: u64,
-        recording_sections: bool,
+        is_recording_sections: bool,
     ) {
         self.occ[move_to as usize] = self.occ[move_from as usize]; // covers different alloys also
         self.occ[move_from as usize] = 0;
@@ -510,11 +515,11 @@ impl Simulation {
         self.onlyocc.remove(&move_from);
         self.onlyocc.insert(move_to);
 
-        if SAVE_ENTIRE_SIM || recording_sections {
+        if SAVE_ENTIRE_SIM || is_recording_sections {
             self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         }
         for o in self.nn[&move_from] {
-            if SAVE_ENTIRE_SIM || recording_sections {
+            if SAVE_ENTIRE_SIM || is_recording_sections {
                 if self.occ[o as usize] == 1 && o != move_to {
                     self.cn_dict[self.cn_metal[o as usize]] -= 1;
                     self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
@@ -523,7 +528,7 @@ impl Simulation {
             self.cn_metal[o as usize] -= 1;
         }
         for o in self.nn[&move_to] {
-            if SAVE_ENTIRE_SIM || recording_sections {
+            if SAVE_ENTIRE_SIM || is_recording_sections {
                 if self.occ[o as usize] == 1 && o != move_from {
                     self.cn_dict[self.cn_metal[o as usize]] -= 1;
                     self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
@@ -531,7 +536,7 @@ impl Simulation {
             }
             self.cn_metal[o as usize] += 1;
         }
-        if SAVE_ENTIRE_SIM || recording_sections {
+        if SAVE_ENTIRE_SIM || is_recording_sections {
             self.cn_dict[self.cn_metal[move_to as usize]] += 1;
         }
 
@@ -562,6 +567,19 @@ impl Simulation {
                     self.possible_moves.add_item(move_to, empty_neighbor);
                 }
             }
+        }
+    }
+    fn cond_write_heat_map_section(&mut self, iiter: &u64) {
+        const NUMBER_HEAT_MAP_SECTIONS: u64 = 10;
+        // self.heat_map[move_to as usize] += 1;
+
+        if (iiter) % (self.niter / NUMBER_HEAT_MAP_SECTIONS) == 0 {
+            println!("up heat: {}", iiter);
+            let mut t_vec = vec![0; self.heat_map.len()];
+            self.heat_map.iter().enumerate().map(|(i, x)| {
+                t_vec[i as usize] = *x;
+            });
+            self.heat_map_sections.push(t_vec);
         }
     }
 }
