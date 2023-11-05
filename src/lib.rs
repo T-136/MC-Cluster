@@ -28,7 +28,7 @@ const NN_PAIR_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [30, 30, 30];
+const GRID_SIZE: [u32; 3] = [20, 20, 20];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -47,15 +47,14 @@ pub struct Simulation {
     unit_cell: UnitCell,
     cn_dict: [u32; CN + 1],
     save_folder: String,
-    last_traj_frequency: u64,
-    last_frames_trajectory_amount: Option<u64>,
     start_temperature: Option<f64>,
     temperature: f64,
     cn_dict_sections: Vec<HashMap<u8, f64>>,
     energy_sections_list: Vec<f64>,
     optimization_cut_off_fraction: Vec<u64>,
     unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
-    heat_map: Vec<u64>,
+    heat_map: Option<Vec<u64>>,
+    snap_shot_sections: Option<Vec<Vec<u8>>>,
     heat_map_sections: Vec<Vec<u64>>,
 }
 
@@ -69,8 +68,8 @@ impl Simulation {
         save_folder_name: String,
         pairlist_file: String,
         atom_sites: String,
-        last_traj_frequency: u64,
-        last_frames_trajectory_amount: Option<u64>,
+        write_snap_shots: bool,
+        is_heat_map: bool,
         bulk_file_name: String,
         repetition: usize,
         optimization_cut_off_fraction: Vec<u64>,
@@ -165,7 +164,19 @@ impl Simulation {
         let cn_dict_sections = Vec::with_capacity(AMOUNT_SECTIONS);
         let energy_sections_list = Vec::with_capacity(AMOUNT_SECTIONS);
         let unique_levels = HashMap::new();
-        let heat_map: Vec<u64> = vec![0; nsites as usize];
+
+        let snap_shot_sections: Option<Vec<Vec<u8>>> = if write_snap_shots {
+            Some(Vec::new())
+        } else {
+            None
+        };
+
+        let heat_map: Option<Vec<u64>> = if is_heat_map {
+            Some(vec![0; nsites as usize])
+        } else {
+            None
+        };
+
         let heat_map_sections: Vec<Vec<u64>> = Vec::new();
 
         Simulation {
@@ -181,14 +192,13 @@ impl Simulation {
             unit_cell,
             cn_dict,
             save_folder: sub_folder,
-            last_traj_frequency,
-            last_frames_trajectory_amount,
             start_temperature,
             temperature,
             cn_dict_sections,
             energy_sections_list,
             optimization_cut_off_fraction,
             unique_levels,
+            snap_shot_sections,
             heat_map,
             heat_map_sections,
         }
@@ -209,16 +219,6 @@ impl Simulation {
             choose_seed: [0; 32],
             e_number_seed: [0; 32],
         };
-
-        let mut trajectory_last_frames: Option<Trajectory> =
-            self.last_frames_trajectory_amount.clone().map(|i| {
-                let range = i * self.last_traj_frequency;
-                Trajectory::open(
-                    self.save_folder.clone() + &format!("/last_{range}_frames.xyz"),
-                    'w',
-                )
-                .unwrap()
-            });
 
         let mut lowest_energy_struct: sim::LowestEnergy = sim::LowestEnergy {
             energy: f64::INFINITY,
@@ -291,9 +291,11 @@ impl Simulation {
             ) {
                 self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
                 self.update_possible_moves(move_from, move_to);
-                self.heat_map[move_to as usize] += 1;
+                if let Some(map) = &mut self.heat_map {
+                    map[move_to as usize] += 1;
+                }
             }
-            self.cond_write_heat_map_section(&iiter);
+            self.cond_snap_and_heat_map(&iiter);
 
             if iiter * self.optimization_cut_off_fraction[1] * 2
                 >= self.niter * self.optimization_cut_off_fraction[0] * 3
@@ -302,7 +304,6 @@ impl Simulation {
                 self.save_lowest_energy(&iiter, &mut lowest_energy_struct)
             }
 
-            self.cond_last_frams_traj_write(&iiter, &mut trajectory_last_frames);
             if SAVE_ENTIRE_SIM || is_recording_sections {
                 temp_energy_section = self.save_sections(
                     &iiter,
@@ -314,14 +315,27 @@ impl Simulation {
             }
         }
         println!("heatmap section len: {:?}", self.heat_map_sections.len());
-        let mut wtr = Writer::from_path(self.save_folder.clone() + "/heat_map.csv").unwrap();
-        wtr.write_record(self.heat_map.iter().map(|x| x.to_string()))
-            .unwrap();
-        for heat_section in &self.heat_map_sections {
-            wtr.write_record(heat_section.iter().map(|x| x.to_string()))
-                .unwrap();
+
+        if self.heat_map.is_some() {
+            let mut wtr = Writer::from_path(self.save_folder.clone() + "/heat_map.csv").unwrap();
+            for heat_section in &self.heat_map_sections {
+                wtr.write_record(heat_section.iter().map(|x| x.to_string()))
+                    .unwrap();
+            }
+            wtr.flush().unwrap();
         }
-        wtr.flush().unwrap();
+
+        if self.snap_shot_sections.is_some() {
+            let mut wtr =
+                Writer::from_path(self.save_folder.clone() + "/snap_shot_sections.csv").unwrap();
+            if let Some(snap_shot_sections) = &self.snap_shot_sections {
+                for heat_section in snap_shot_sections {
+                    wtr.write_record(heat_section.iter().map(|x| x.to_string()))
+                        .unwrap();
+                }
+            }
+            wtr.flush().unwrap();
+        }
 
         Results {
             start,
@@ -426,21 +440,6 @@ impl Simulation {
 
             self.write_traj(&mut trajectory_lowest_energy);
         };
-    }
-
-    fn cond_last_frams_traj_write(
-        &self,
-        iiter: &u64,
-        trajectory_last_frames_option: &mut Option<Trajectory>,
-    ) {
-        if let Some(traj_last_frames) = trajectory_last_frames_option {
-            if (self.niter - iiter
-                <= self.last_frames_trajectory_amount.unwrap() * self.last_traj_frequency)
-                && ((self.niter - iiter) % self.last_traj_frequency == 0)
-            {
-                self.write_traj(traj_last_frames);
-            }
-        }
     }
 
     fn write_traj(&self, trajectory: &mut Trajectory) {
@@ -569,17 +568,36 @@ impl Simulation {
             }
         }
     }
-    fn cond_write_heat_map_section(&mut self, iiter: &u64) {
-        const NUMBER_HEAT_MAP_SECTIONS: u64 = 10;
+    fn cond_snap_and_heat_map(&mut self, iiter: &u64) {
+        const NUMBER_HEAT_MAP_SECTIONS: u64 = 1000;
         // self.heat_map[move_to as usize] += 1;
 
-        if (iiter) % (self.niter / NUMBER_HEAT_MAP_SECTIONS) == 0 {
-            println!("up heat: {}", iiter);
-            let mut t_vec = vec![0; self.heat_map.len()];
-            self.heat_map.iter().enumerate().map(|(i, x)| {
-                t_vec[i as usize] = *x;
-            });
-            self.heat_map_sections.push(t_vec);
+        if let Some(snap_shot_sections) = &mut self.snap_shot_sections {
+            if (iiter + 1) % (self.niter / NUMBER_HEAT_MAP_SECTIONS) == 0 {
+                if iiter == &0 {
+                    return;
+                }
+                let mut t_vec = vec![0; self.occ.len()];
+                t_vec
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(i, x)| *x = self.occ[i]);
+                snap_shot_sections.push(t_vec);
+            }
+        }
+
+        if let Some(heat_map) = &mut self.heat_map {
+            if (iiter + 1) % (self.niter / NUMBER_HEAT_MAP_SECTIONS) == 0 {
+                if iiter == &0 {
+                    return;
+                }
+                let mut t_vec = vec![0; heat_map.len()];
+                t_vec
+                    .iter_mut()
+                    .enumerate()
+                    .for_each(|(i, x)| *x = heat_map[i]);
+                self.heat_map_sections.push(t_vec);
+            }
         }
     }
 }

@@ -44,17 +44,19 @@ struct Args {
     #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
     repetition: Vec<usize>,
 
-    #[arg(short, long, default_value_t = String::from("../303030-pair"))]
+    #[arg(short, long, default_value_t = String::from("../202020-pair"))]
     grid_folder: String,
 
     #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]
     core_file: String,
 
-    #[arg(long)]
-    last_frames_xyz: Option<u64>,
+    // #[arg(long)]
+    // snap_shots_count: Option<u64>,
+    #[arg(short, long, default_value_t = false)]
+    write_snap_shots: bool,
 
-    #[arg(short, long, default_value_t = 1)]
-    write_trajectory_frequency: u64,
+    #[arg(long, default_value_t = false)]
+    heat_map: bool,
 
     #[arg(short, long, value_delimiter = '/', default_values_t = vec!(1,2))]
     optimization_cut_off_fraction: Vec<u64>,
@@ -94,8 +96,11 @@ fn main() {
 
     let niter_str = args.iterations;
     let niter = fmt_scient(&niter_str);
-    let last_traj_frequency: u64 = args.write_trajectory_frequency;
-    let last_frames_trajectory_amount: Option<u64> = args.last_frames_xyz;
+    let mut write_snap_shots: bool = args.write_snap_shots;
+    let heat_map: bool = args.heat_map;
+    if heat_map {
+        write_snap_shots = true;
+    }
     let bulk_file_name: String = args.core_file;
     let optimization_cut_off_fraction: Vec<u64> = args.optimization_cut_off_fraction;
 
@@ -125,8 +130,8 @@ fn main() {
                 // nn_pairlist_file,
                 // nnn_pairlist_file,
                 atom_sites,
-                last_traj_frequency,
-                last_frames_trajectory_amount,
+                write_snap_shots,
+                heat_map,
                 bulk_file_name,
                 rep,
                 optimization_cut_off_fraction,

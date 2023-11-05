@@ -1,12 +1,12 @@
 // Pt
-// const M_BETA: i64 = -0330;
-// const M_ALPHA: i64 = 3960;
+const M_BETA: i64 = -0330;
+const M_ALPHA: i64 = 3960;
 
 use core::panic;
 
 // Co
-const M_BETA: i64 = -0219;
-const M_ALPHA: i64 = 2628;
+// const M_BETA: i64 = -0219;
+// const M_ALPHA: i64 = 2628;
 
 // ciobacia
 fn ciobacia_table(cn: usize) -> i64 {
