@@ -117,7 +117,7 @@ impl Simulation {
             }
             cn_metal.push(neighbors as usize);
             if occ[o as usize] == 1 {
-                cn_dict[cn_metal[o as usize] as usize] += 1;
+                cn_dict[cn_metal[o as usize]] += 1;
             };
         }
         let mut total_energy_1000: i64 = 0;
@@ -131,7 +131,7 @@ impl Simulation {
                     // >1 so that atoms cant leave the cluster
                     // <x cant move if all neighbors are occupied
                     if cn_metal[*o as usize] < CN && cn_metal[*u as usize] > 1 {
-                        possible_moves.add_item(o.clone(), u.clone())
+                        possible_moves.add_item(*o, *u)
                     }
                 }
             }
@@ -238,7 +238,7 @@ impl Simulation {
         }
 
         let start: sim::Start = sim::Start {
-            start_energy: start_energy,
+            start_energy,
             start_cn: start_cn_dict,
         };
 
@@ -277,8 +277,8 @@ impl Simulation {
                     *x = 0;
                 });
                 for o in 0..self.cn_metal.len() {
-                    if self.occ[o as usize] == 1 {
-                        self.cn_dict[self.cn_metal[o as usize] as usize] += 1;
+                    if self.occ[o] == 1 {
+                        self.cn_dict[self.cn_metal[o]] += 1;
                     };
                 }
             }
@@ -293,12 +293,13 @@ impl Simulation {
                 self.update_possible_moves(move_from, move_to);
                 if let Some(map) = &mut self.heat_map {
                     map[move_to as usize] += 1;
+                    map[move_from as usize] += 1;
                 }
             }
             self.cond_snap_and_heat_map(&iiter);
 
-            if iiter * self.optimization_cut_off_fraction[1] * 2
-                >= self.niter * self.optimization_cut_off_fraction[0] * 3
+            if iiter * self.optimization_cut_off_fraction[1]
+                >= self.niter * self.optimization_cut_off_fraction[0]
             // if iiter + 1 == self.niter
             {
                 self.save_lowest_energy(&iiter, &mut lowest_energy_struct)
@@ -413,7 +414,7 @@ impl Simulation {
     }
 
     fn save_lowest_energy(&mut self, iiter: &u64, lowest_energy_struct: &mut sim::LowestEnergy) {
-        if &lowest_energy_struct.energy > &(self.total_energy_1000 as f64 / 1000.) {
+        if lowest_energy_struct.energy > (self.total_energy_1000 as f64 / 1000.) {
             let mut empty_neighbor_cn: HashMap<u8, u32> = HashMap::new();
             let empty_set: HashSet<&u32> =
                 HashSet::from_iter(self.possible_moves.iter().map(|(_, empty)| empty));
@@ -426,8 +427,8 @@ impl Simulation {
                 }
             }
             lowest_energy_struct.empty_cn = empty_neighbor_cn;
-            lowest_energy_struct.energy = self.total_energy_1000.clone() as f64 / 1000.;
-            lowest_energy_struct.iiter = iiter.clone();
+            lowest_energy_struct.energy = self.total_energy_1000 as f64 / 1000.;
+            lowest_energy_struct.iiter = *iiter;
 
             let mut cn_hash_map: HashMap<u8, u32> = HashMap::new();
             for (i, v) in self.cn_dict.into_iter().enumerate() {
@@ -446,7 +447,7 @@ impl Simulation {
         let mut xyz: Vec<[f64; 3]> = Vec::new();
         // println!("{:?}", self.onlyocc);
         for (j, ii) in self.onlyocc.iter().enumerate() {
-            xyz.insert(j, self.xsites_positions[ii.clone() as usize]);
+            xyz.insert(j, self.xsites_positions[*ii as usize]);
         }
         let mut frame = Frame::new();
         frame.set_cell(&self.unit_cell);
@@ -456,12 +457,12 @@ impl Simulation {
         }
 
         trajectory
-            .write(&mut frame)
+            .write(&frame)
             .unwrap_or_else(|x| eprintln!("{}", x));
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
-        let heating_temp = 3000.;
+        let heating_temp = 5000.;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp
@@ -518,20 +519,22 @@ impl Simulation {
             self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         }
         for o in self.nn[&move_from] {
-            if SAVE_ENTIRE_SIM || is_recording_sections {
-                if self.occ[o as usize] == 1 && o != move_to {
-                    self.cn_dict[self.cn_metal[o as usize]] -= 1;
-                    self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
-                }
+            if (SAVE_ENTIRE_SIM || is_recording_sections)
+                && self.occ[o as usize] == 1
+                && o != move_to
+            {
+                self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
             }
             self.cn_metal[o as usize] -= 1;
         }
         for o in self.nn[&move_to] {
-            if SAVE_ENTIRE_SIM || is_recording_sections {
-                if self.occ[o as usize] == 1 && o != move_from {
-                    self.cn_dict[self.cn_metal[o as usize]] -= 1;
-                    self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
-                }
+            if (SAVE_ENTIRE_SIM || is_recording_sections)
+                && self.occ[o as usize] == 1
+                && o != move_from
+            {
+                self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
             }
             self.cn_metal[o as usize] += 1;
         }
@@ -569,7 +572,7 @@ impl Simulation {
         }
     }
     fn cond_snap_and_heat_map(&mut self, iiter: &u64) {
-        const NUMBER_HEAT_MAP_SECTIONS: u64 = 1000;
+        const NUMBER_HEAT_MAP_SECTIONS: u64 = 200;
         // self.heat_map[move_to as usize] += 1;
 
         if let Some(snap_shot_sections) = &mut self.snap_shot_sections {
