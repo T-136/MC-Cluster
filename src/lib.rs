@@ -242,10 +242,14 @@ impl Simulation {
             start_cn: start_cn_dict,
         };
 
-        let mut lowest_e_occ: Vec<u8> = Vec::with_capacity(self.occ.len());
+        let mut lowest_e_onlyocc: HashSet<u32, fnv::FnvBuildHasher> =
+            fnv::FnvHashSet::with_capacity_and_hasher(
+                self.number_all_atoms as usize,
+                Default::default(),
+            );
         if self.niter == 0 {
             if let Some(x) = self.save_lowest_energy(&0, &mut lowest_energy_struct) {
-                lowest_e_occ = x;
+                lowest_e_onlyocc = x;
             };
         }
         let section_size: u64 = self.niter / AMOUNT_SECTIONS as u64;
@@ -306,7 +310,7 @@ impl Simulation {
             // if iiter + 1 == self.niter
             {
                 if let Some(x) = self.save_lowest_energy(&iiter, &mut lowest_energy_struct) {
-                    lowest_e_occ = x;
+                    lowest_e_onlyocc = x;
                 };
             }
 
@@ -326,7 +330,7 @@ impl Simulation {
             let mut trajectory_lowest_energy =
                 Trajectory::open(self.save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
 
-            self.write_occ_as_xyz(&mut trajectory_lowest_energy, lowest_e_occ);
+            self.write_occ_as_xyz(&mut trajectory_lowest_energy, lowest_e_onlyocc);
         }
 
         if self.heat_map.is_some() {
@@ -429,7 +433,7 @@ impl Simulation {
         &mut self,
         iiter: &u64,
         lowest_energy_struct: &mut sim::LowestEnergy,
-    ) -> Option<Vec<u8>> {
+    ) -> Option<HashSet<u32, fnv::FnvBuildHasher>> {
         if lowest_energy_struct.energy > (self.total_energy_1000 as f64 / 1000.) {
             let mut empty_neighbor_cn: HashMap<u8, u32> = HashMap::new();
             let empty_set: HashSet<&u32> =
@@ -452,16 +456,20 @@ impl Simulation {
             }
             lowest_energy_struct.cn_total = cn_hash_map;
 
-            Some(self.occ.clone())
+            Some(self.onlyocc.clone())
         } else {
             None
         }
     }
 
-    fn write_occ_as_xyz(&self, trajectory: &mut Trajectory, occ: Vec<u8>) {
+    fn write_occ_as_xyz(
+        &self,
+        trajectory: &mut Trajectory,
+        onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
+    ) {
         let mut xyz: Vec<[f64; 3]> = Vec::new();
         // println!("{:?}", self.onlyocc);
-        for (j, ii) in occ.iter().enumerate() {
+        for (j, ii) in onlyocc.iter().enumerate() {
             xyz.insert(j, self.xsites_positions[*ii as usize]);
         }
         let mut frame = Frame::new();
