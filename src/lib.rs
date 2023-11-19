@@ -242,8 +242,11 @@ impl Simulation {
             start_cn: start_cn_dict,
         };
 
+        let mut lowest_e_occ: Vec<u8> = Vec::with_capacity(self.occ.len());
         if self.niter == 0 {
-            self.save_lowest_energy(&0, &mut lowest_energy_struct);
+            if let Some(x) = self.save_lowest_energy(&0, &mut lowest_energy_struct) {
+                lowest_e_occ = x;
+            };
         }
         let section_size: u64 = self.niter / AMOUNT_SECTIONS as u64;
         println!("section_size: {}", section_size);
@@ -302,7 +305,9 @@ impl Simulation {
                 >= self.niter * self.optimization_cut_off_fraction[0]
             // if iiter + 1 == self.niter
             {
-                self.save_lowest_energy(&iiter, &mut lowest_energy_struct)
+                if let Some(x) = self.save_lowest_energy(&iiter, &mut lowest_energy_struct) {
+                    lowest_e_occ = x;
+                };
             }
 
             if SAVE_ENTIRE_SIM || is_recording_sections {
@@ -316,6 +321,13 @@ impl Simulation {
             }
         }
         println!("heatmap section len: {:?}", self.heat_map_sections.len());
+
+        {
+            let mut trajectory_lowest_energy =
+                Trajectory::open(self.save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
+
+            self.write_occ_as_xyz(&mut trajectory_lowest_energy, lowest_e_occ);
+        }
 
         if self.heat_map.is_some() {
             let mut wtr = Writer::from_path(self.save_folder.clone() + "/heat_map.csv").unwrap();
@@ -413,7 +425,11 @@ impl Simulation {
         temp_energy_section_1000
     }
 
-    fn save_lowest_energy(&mut self, iiter: &u64, lowest_energy_struct: &mut sim::LowestEnergy) {
+    fn save_lowest_energy(
+        &mut self,
+        iiter: &u64,
+        lowest_energy_struct: &mut sim::LowestEnergy,
+    ) -> Option<Vec<u8>> {
         if lowest_energy_struct.energy > (self.total_energy_1000 as f64 / 1000.) {
             let mut empty_neighbor_cn: HashMap<u8, u32> = HashMap::new();
             let empty_set: HashSet<&u32> =
@@ -436,17 +452,16 @@ impl Simulation {
             }
             lowest_energy_struct.cn_total = cn_hash_map;
 
-            let mut trajectory_lowest_energy =
-                Trajectory::open(self.save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
-
-            self.write_traj(&mut trajectory_lowest_energy);
-        };
+            Some(self.occ.clone())
+        } else {
+            None
+        }
     }
 
-    fn write_traj(&self, trajectory: &mut Trajectory) {
+    fn write_occ_as_xyz(&self, trajectory: &mut Trajectory, occ: Vec<u8>) {
         let mut xyz: Vec<[f64; 3]> = Vec::new();
         // println!("{:?}", self.onlyocc);
-        for (j, ii) in self.onlyocc.iter().enumerate() {
+        for (j, ii) in occ.iter().enumerate() {
             xyz.insert(j, self.xsites_positions[*ii as usize]);
         }
         let mut frame = Frame::new();
