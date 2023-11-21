@@ -271,7 +271,32 @@ impl Simulation {
 
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            let energy1000_diff = energy::energy_diff(
+            // let energy1000_diff = energy::energy_diff(
+            //     self.cn_metal[move_from as usize],
+            //     self.cn_metal[move_to as usize] - 1,
+            // );
+            let nn_intersection: Vec<u32> = self.nn[&move_from]
+                .into_iter()
+                .filter(|x| self.nn[&move_to].contains(x))
+                .collect();
+
+            let energy1000_diff = energy::energy_diff_enrico(
+                self.nn[&move_from]
+                    .iter()
+                    .filter(|x| {
+                        self.occ[**x as usize] != 0
+                            && !nn_intersection.contains(x)
+                            && **x != move_to
+                    })
+                    .map(|x| self.cn_metal[*x as usize]),
+                self.nn[&move_to]
+                    .iter()
+                    .filter(|x| {
+                        self.occ[**x as usize] != 0
+                            && **x != move_from
+                            && !nn_intersection.contains(x)
+                    })
+                    .map(|x| self.cn_metal[*x as usize]),
                 self.cn_metal[move_from as usize],
                 self.cn_metal[move_to as usize],
             );
@@ -485,7 +510,7 @@ impl Simulation {
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
-        let heating_temp = 5000.;
+        let heating_temp = 3000.;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp
