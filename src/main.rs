@@ -44,7 +44,7 @@ struct Args {
     #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
     repetition: Vec<usize>,
 
-    #[arg(short, long, default_value_t = String::from("../202020-pair"))]
+    #[arg(short, long, default_value_t = String::from("../555-pair"))]
     grid_folder: String,
 
     #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]
@@ -65,12 +65,13 @@ struct Args {
     unique_levels: i32,
 }
 
-fn file_paths(grid_folder: String) -> (String, String, String, String) {
+fn file_paths(grid_folder: String) -> (String, String, String, String, String) {
     (
         format!("{}/pairlist", grid_folder),
         format!("{}/nn_pairlist", grid_folder),
         format!("{}/nnn_pairlist", grid_folder),
         format!("{}/atom_sites", grid_folder),
+        format!("{}/nn_pair_no_intersec", grid_folder),
     )
 }
 
@@ -91,7 +92,7 @@ fn main() {
     let input_file: Option<String> = args.start_cluster;
 
     #[allow(unused_variables)]
-    let (pairlist_file, nn_pairlist_file, nnn_pairlist_file, atom_sites) =
+    let (pairlist_file, nn_pairlist_file, nnn_pairlist_file, atom_sites, nn_pair_no_int_file) =
         file_paths(args.grid_folder);
 
     let niter_str = args.iterations;
@@ -113,6 +114,7 @@ fn main() {
         let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let pairlist_file = pairlist_file.clone();
+        let nn_pair_no_int_file = nn_pair_no_int_file.clone();
         // let nn_pairlist_file = nn_pairlist_file.clone();
         // let nnn_pairlist_file = nnn_pairlist_file.clone();
         let atom_sites = atom_sites.clone();
@@ -127,6 +129,7 @@ fn main() {
                 start_temperature,
                 save_folder,
                 pairlist_file,
+                nn_pair_no_int_file,
                 // nn_pairlist_file,
                 // nnn_pairlist_file,
                 atom_sites,

@@ -25,10 +25,11 @@ pub use sim::Results;
 
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
+const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [20, 20, 20];
+const GRID_SIZE: [u32; 3] = [15, 15, 15];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -43,6 +44,7 @@ pub struct Simulation {
     // energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
+    nn_pair_no_intersec: HashMap<u64, [[u32; NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
     xsites_positions: Vec<[f64; 3]>,
     unit_cell: UnitCell,
     cn_dict: [u32; CN + 1],
@@ -67,6 +69,7 @@ impl Simulation {
         start_temperature: Option<f64>,
         save_folder_name: String,
         pairlist_file: String,
+        nn_pair_no_int_file: String,
         atom_sites: String,
         write_snap_shots: bool,
         is_heat_map: bool,
@@ -76,6 +79,7 @@ impl Simulation {
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
+        let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
             panic!(
@@ -188,6 +192,7 @@ impl Simulation {
             possible_moves,
             total_energy_1000,
             nn,
+            nn_pair_no_intersec,
             xsites_positions,
             unit_cell,
             cn_dict,
@@ -275,27 +280,22 @@ impl Simulation {
             //     self.cn_metal[move_from as usize],
             //     self.cn_metal[move_to as usize] - 1,
             // );
-            let nn_intersection: Vec<u32> = self.nn[&move_from]
-                .into_iter()
-                .filter(|x| self.nn[&move_to].contains(x))
-                .collect();
 
+            let no_int = self.nn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
+                + ((std::cmp::max(move_to, move_from) as u64) << 32))];
+            let (to_change, from_change) = if move_to < move_from {
+                (no_int[0], no_int[1])
+            } else {
+                (no_int[1], no_int[0])
+            };
             let energy1000_diff = energy::energy_diff_enrico(
-                self.nn[&move_from]
+                from_change
                     .iter()
-                    .filter(|x| {
-                        self.occ[**x as usize] != 0
-                            && !nn_intersection.contains(x)
-                            && **x != move_to
-                    })
+                    .filter(|x| self.occ[**x as usize] != 0)
                     .map(|x| self.cn_metal[*x as usize]),
-                self.nn[&move_to]
+                to_change
                     .iter()
-                    .filter(|x| {
-                        self.occ[**x as usize] != 0
-                            && **x != move_from
-                            && !nn_intersection.contains(x)
-                    })
+                    .filter(|x| self.occ[**x as usize] != 0)
                     .map(|x| self.cn_metal[*x as usize]),
                 self.cn_metal[move_from as usize],
                 self.cn_metal[move_to as usize],
