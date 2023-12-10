@@ -72,6 +72,49 @@ pub fn read_nn(pairlist_file: &str) -> HashMap<u32, [u32; super::CN], FnvBuildHa
     }
     nn
 }
+pub fn read_nnn_pair_no_intersec(
+    nn_pairlist_file: &str,
+) -> HashMap<u64, [[u32; super::NNN_PAIR_NO_INTERSEC_NUMBER]; 2], FnvBuildHasher> {
+    let nn_pairlist =
+        fs::File::open(nn_pairlist_file).expect("Should have been able to read the file");
+
+    let lines = io::BufReader::new(nn_pairlist);
+
+    let mut nn_pair: HashMap<u64, [[u32; super::NNN_PAIR_NO_INTERSEC_NUMBER]; 2], FnvBuildHasher> =
+        FnvHashMap::with_capacity_and_hasher(32000, Default::default());
+
+    for line in lines.lines() {
+        let r = line.unwrap();
+        let test: Vec<&str> = r.split_whitespace().clone().collect();
+        let site: u32 = std::cmp::min(
+            test[0].parse::<u32>().unwrap(),
+            test[1].parse::<u32>().unwrap(),
+        );
+        let j: u32 = std::cmp::max(
+            test[0].parse::<u32>().unwrap(),
+            test[1].parse::<u32>().unwrap(),
+        );
+        let mut neighbors: [[u32; super::NNN_PAIR_NO_INTERSEC_NUMBER]; 2] =
+            [[0; super::NNN_PAIR_NO_INTERSEC_NUMBER]; 2];
+
+        for (i, l) in test.iter().skip(2).enumerate() {
+            if i < 20 {
+                neighbors[0][i] = l.parse::<u32>().unwrap()
+            } else {
+                neighbors[1][i - 20] = l.parse::<u32>().unwrap()
+            }
+        }
+        nn_pair
+            // .entry()
+            // .and_modify(|map| {
+            //     map.insert(j, neighbors.clone());
+            // })
+            .insert(site as u64 + ((j as u64) << 32), neighbors);
+        // println!("{:?}", line.unwrap());
+    }
+
+    return nn_pair;
+}
 
 pub fn read_nn_pair_no_intersec(
     nn_pairlist_file: &str,

@@ -51,6 +51,7 @@ pub fn create_input_cluster(
     onlyocc.insert(iclose);
 
     let mut ks = 1;
+    assert!(number_of_atoms < &nsites);
 
     loop {
         let mut onlyocc_temp_storag: HashSet<u32> = HashSet::new();
@@ -72,12 +73,10 @@ pub fn create_input_cluster(
         for v in onlyocc_temp_storag {
             onlyocc.insert(v);
         }
-        println!("{}", onlyocc.len());
         if &ks == number_of_atoms {
             break;
         }
     }
-    println!("{}", onlyocc.len());
 
     for site in onlyocc.iter() {
         occ[*site as usize] = 1_u8;
@@ -134,7 +133,7 @@ pub fn occ_onlyocc_from_xyz(
     for (i, o) in occ.iter().enumerate() {
         if *o == 1_u8 {
             if !onlyocc.contains(&(i as u32)) {
-                println!("{}", i);
+                println!("occ: {}", i);
             }
         }
     }

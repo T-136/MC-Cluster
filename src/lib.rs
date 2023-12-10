@@ -26,10 +26,11 @@ pub use sim::Results;
 const CN: usize = 12;
 const NN_PAIR_NUMBER: usize = 20;
 const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
+const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [15, 15, 15];
+const GRID_SIZE: [u32; 3] = [9, 9, 9];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -45,6 +46,8 @@ pub struct Simulation {
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
     nn_pair_no_intersec: HashMap<u64, [[u32; NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
+    nnn_pair_no_intersec:
+        HashMap<u64, [[u32; NNN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
     xsites_positions: Vec<[f64; 3]>,
     unit_cell: UnitCell,
     cn_dict: [u32; CN + 1],
@@ -58,6 +61,7 @@ pub struct Simulation {
     heat_map: Option<Vec<u64>>,
     snap_shot_sections: Option<Vec<Vec<u8>>>,
     heat_map_sections: Vec<Vec<u64>>,
+    energy: EnergyInput,
 }
 
 impl Simulation {
@@ -70,16 +74,19 @@ impl Simulation {
         save_folder_name: String,
         pairlist_file: String,
         nn_pair_no_int_file: String,
+        nnn_pair_no_int_file: String,
         atom_sites: String,
         write_snap_shots: bool,
         is_heat_map: bool,
         bulk_file_name: String,
         repetition: usize,
         optimization_cut_off_fraction: Vec<u64>,
+        energy: EnergyInput,
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
         let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
+        let nnn_pair_no_intersec = read_files::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
             panic!(
@@ -127,7 +134,7 @@ impl Simulation {
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
         for o in onlyocc.iter() {
-            let energy_1000: i64 = energy::energy_1000_calculation(o, &cn_metal);
+            let energy_1000: i64 = energy::energy_1000_calculation(&energy, cn_metal[*o as usize]);
             total_energy_1000 += energy_1000;
 
             for u in &nn[o] {
@@ -193,6 +200,7 @@ impl Simulation {
             total_energy_1000,
             nn,
             nn_pair_no_intersec,
+            nnn_pair_no_intersec,
             xsites_positions,
             unit_cell,
             cn_dict,
@@ -206,6 +214,7 @@ impl Simulation {
             snap_shot_sections,
             heat_map,
             heat_map_sections,
+            energy,
         }
     }
 
@@ -276,30 +285,65 @@ impl Simulation {
 
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            // let energy1000_diff = energy::energy_diff(
-            //     self.cn_metal[move_from as usize],
-            //     self.cn_metal[move_to as usize] - 1,
-            // );
+            let energy1000_diff = match self.energy {
+                EnergyInput::LinearCn(energy_l_cn) => energy::energy_diff_l_cn(
+                    energy_l_cn,
+                    self.cn_metal[move_from as usize],
+                    self.cn_metal[move_to as usize],
+                ),
+                EnergyInput::Cn(energy_cn) => {
+                    let no_int = self.nn_pair_no_intersec[&(std::cmp::min(move_from, move_to)
+                        as u64
+                        + ((std::cmp::max(move_to, move_from) as u64) << 32))];
+                    let (to_change, from_change) = if move_to < move_from {
+                        (no_int[0], no_int[1])
+                    } else {
+                        (no_int[1], no_int[0])
+                    };
 
-            let no_int = self.nn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
-                + ((std::cmp::max(move_to, move_from) as u64) << 32))];
-            let (to_change, from_change) = if move_to < move_from {
-                (no_int[0], no_int[1])
-            } else {
-                (no_int[1], no_int[0])
+                    energy::energy_diff_cn(
+                        energy_cn,
+                        from_change
+                            .iter()
+                            .filter(|x| self.occ[**x as usize] != 0)
+                            .map(|x| self.cn_metal[*x as usize]),
+                        to_change
+                            .iter()
+                            .filter(|x| self.occ[**x as usize] != 0)
+                            .map(|x| self.cn_metal[*x as usize]),
+                        self.cn_metal[move_from as usize],
+                        self.cn_metal[move_to as usize],
+                    )
+                }
+                EnergyInput::LinearGcn(energy_l_gcn) => energy::energy_diff_l_cn(
+                    energy_l_gcn,
+                    self.cn_metal[move_from as usize],
+                    self.cn_metal[move_to as usize],
+                ),
+                EnergyInput::Gcn(energy_gcn) => {
+                    let no_int = self.nnn_pair_no_intersec[&(std::cmp::min(move_from, move_to)
+                        as u64
+                        + ((std::cmp::max(move_to, move_from) as u64) << 32))];
+                    let (to_change, from_change) = if move_to < move_from {
+                        (no_int[0], no_int[1])
+                    } else {
+                        (no_int[1], no_int[0])
+                    };
+                    energy::energy_diff_gcn(
+                        energy_gcn,
+                        from_change
+                            .iter()
+                            .filter(|x| self.occ[**x as usize] != 0)
+                            .map(|x| self.cn_metal[*x as usize]),
+                        to_change
+                            .iter()
+                            .filter(|x| self.occ[**x as usize] != 0)
+                            .map(|x| self.cn_metal[*x as usize]),
+                        self.cn_metal[move_from as usize],
+                        self.cn_metal[move_to as usize],
+                    )
+                }
             };
-            let energy1000_diff = energy::energy_diff_enrico(
-                from_change
-                    .iter()
-                    .filter(|x| self.occ[**x as usize] != 0)
-                    .map(|x| self.cn_metal[*x as usize]),
-                to_change
-                    .iter()
-                    .filter(|x| self.occ[**x as usize] != 0)
-                    .map(|x| self.cn_metal[*x as usize]),
-                self.cn_metal[move_from as usize],
-                self.cn_metal[move_to as usize],
-            );
 
             if !SAVE_ENTIRE_SIM
                 && iiter * self.optimization_cut_off_fraction[1]
@@ -321,12 +365,16 @@ impl Simulation {
                 iiter,
                 cut_off_perc,
             ) {
+                // println!("{:?}", self.possible_moves.moves);
+                // println!("{:?}", self.cn_metal);
                 self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
                 self.update_possible_moves(move_from, move_to);
                 if let Some(map) = &mut self.heat_map {
                     map[move_to as usize] += 1;
                     map[move_from as usize] += 1;
                 }
+                // println!("{:?}", self.possible_moves.moves);
+                // println!("{:?}\n", self.cn_metal);
             }
             self.cond_snap_and_heat_map(&iiter);
 
@@ -541,7 +589,8 @@ impl Simulation {
         cut_off_perc: f64,
     ) -> bool {
         const KB: f64 = 8.6173324e-5;
-        if energy1000_diff < 0 {
+        // println!("{:?}", energy1000_diff);
+        if energy1000_diff <= 0 {
             return true;
         }
         let acceptance_temp = self.calculate_current_temp(iiter, cut_off_perc);
@@ -715,4 +764,12 @@ pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> 
     }
 
     Ok(())
+}
+
+#[derive(Clone, Debug)]
+pub enum EnergyInput {
+    LinearCn([i64; 2]),
+    Cn([i64; 13]),
+    LinearGcn([i64; 2]),
+    Gcn([i64; 60]),
 }

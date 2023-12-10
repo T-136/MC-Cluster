@@ -1,4 +1,6 @@
+use clap::ArgGroup;
 use clap::Parser;
+use mc::EnergyInput;
 use mc::Simulation;
 use std::fs;
 use std::panic;
@@ -18,8 +20,64 @@ fn fmt_scient(num: &str) -> u64 {
         * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
 }
 
+fn file_or_energy(inp: &str, energy: mc::EnergyInput) -> mc::EnergyInput {
+    if inp.starts_with("./") {
+        let contents = fs::read_to_string(inp).expect("can't find energy file");
+
+        let mut string_iter = contents.split([';', ',']);
+        match energy {
+            EnergyInput::LinearCn(energy_vec) => {
+                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+                EnergyInput::LinearCn(energy_vec)
+            }
+            EnergyInput::Cn(energy_vec) => {
+                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+                EnergyInput::Cn(energy_vec)
+            }
+            EnergyInput::LinearGcn(energy_vec) => {
+                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+                EnergyInput::LinearGcn(energy_vec)
+            }
+            EnergyInput::Gcn(energy_vec) => {
+                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+                EnergyInput::Gcn(energy_vec)
+            }
+        }
+    } else {
+        let mut string_iter = inp.split(',');
+        // println!("string iter {:?}", string_iter.collect());
+        println!("string iter {:?}", string_iter);
+
+        match energy {
+            EnergyInput::LinearCn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
+                }
+                EnergyInput::LinearCn(energy_vec)
+            }
+            EnergyInput::Cn(energy_vec) => {
+                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+                EnergyInput::Cn(energy_vec)
+            }
+            EnergyInput::LinearGcn(energy_vec) => {
+                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+                EnergyInput::LinearGcn(energy_vec)
+            }
+            EnergyInput::Gcn(energy_vec) => {
+                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+                EnergyInput::Gcn(energy_vec)
+            }
+        }
+    }
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
+#[clap(group(
+        ArgGroup::new("my-group")
+            .required(true)
+            .args(&["e_l_cn", "e_cn", "e_l_gcn", "e_gcn"]),
+    ))]
 struct Args {
     #[arg(short, long)]
     start_cluster: Option<String>,
@@ -41,17 +99,27 @@ struct Args {
     #[arg(short, long)]
     begin_temperature: Option<f64>,
 
+    #[arg(long, allow_hyphen_values(true))]
+    e_l_cn: Option<String>,
+
+    #[arg(long, allow_hyphen_values(true))]
+    e_cn: Option<String>,
+
+    #[arg(long, allow_hyphen_values(true))]
+    e_l_gcn: Option<String>,
+
+    #[arg(long, allow_hyphen_values(true))]
+    e_gcn: Option<String>,
+
     #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
     repetition: Vec<usize>,
 
-    #[arg(short, long, default_value_t = String::from("../555-pair"))]
+    #[arg(short, long, default_value_t = String::from("../999-pair"))]
     grid_folder: String,
 
     #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]
     core_file: String,
 
-    // #[arg(long)]
-    // snap_shots_count: Option<u64>,
     #[arg(short, long, default_value_t = false)]
     write_snap_shots: bool,
 
@@ -65,13 +133,14 @@ struct Args {
     unique_levels: i32,
 }
 
-fn file_paths(grid_folder: String) -> (String, String, String, String, String) {
+fn file_paths(grid_folder: String) -> (String, String, String, String, String, String) {
     (
         format!("{}/pairlist", grid_folder),
         format!("{}/nn_pairlist", grid_folder),
         format!("{}/nnn_pairlist", grid_folder),
         format!("{}/atom_sites", grid_folder),
         format!("{}/nn_pair_no_intersec", grid_folder),
+        format!("{}/nnn_pair_no_intersec", grid_folder),
     )
 }
 
@@ -92,8 +161,14 @@ fn main() {
     let input_file: Option<String> = args.start_cluster;
 
     #[allow(unused_variables)]
-    let (pairlist_file, nn_pairlist_file, nnn_pairlist_file, atom_sites, nn_pair_no_int_file) =
-        file_paths(args.grid_folder);
+    let (
+        pairlist_file,
+        nn_pairlist_file,
+        nnn_pairlist_file,
+        atom_sites,
+        nn_pair_no_int_file,
+        nnn_pair_no_int_file,
+    ) = file_paths(args.grid_folder);
 
     let niter_str = args.iterations;
     let niter = fmt_scient(&niter_str);
@@ -107,6 +182,19 @@ fn main() {
 
     let repetition = args.repetition;
 
+    let energy = if args.e_l_cn.is_some() {
+        file_or_energy(&args.e_l_cn.unwrap(), EnergyInput::LinearCn([0; 2]))
+    } else if args.e_l_cn.is_some() {
+        file_or_energy(&args.e_cn.unwrap(), EnergyInput::Cn([0; 13]))
+    } else if args.e_l_cn.is_some() {
+        file_or_energy(&args.e_l_gcn.unwrap(), EnergyInput::LinearGcn([0; 2]))
+    } else if args.e_l_cn.is_some() {
+        file_or_energy(&args.e_gcn.unwrap(), EnergyInput::Gcn([0; 60]))
+    } else {
+        panic!("no energy")
+    };
+
+    println!("energy: {:?}", energy);
     println!("{:?}", repetition);
 
     let mut handle_vec = Vec::new();
@@ -115,11 +203,13 @@ fn main() {
         let save_folder = save_folder.clone();
         let pairlist_file = pairlist_file.clone();
         let nn_pair_no_int_file = nn_pair_no_int_file.clone();
+        let nnn_pair_no_int_file = nnn_pair_no_int_file.clone();
         // let nn_pairlist_file = nn_pairlist_file.clone();
         // let nnn_pairlist_file = nnn_pairlist_file.clone();
         let atom_sites = atom_sites.clone();
         let bulk_file_name = bulk_file_name.clone();
         let optimization_cut_off_fraction = optimization_cut_off_fraction.clone();
+        let energy = energy.clone();
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
                 niter,
@@ -130,6 +220,7 @@ fn main() {
                 save_folder,
                 pairlist_file,
                 nn_pair_no_int_file,
+                nnn_pair_no_int_file,
                 // nn_pairlist_file,
                 // nnn_pairlist_file,
                 atom_sites,
@@ -138,6 +229,7 @@ fn main() {
                 bulk_file_name,
                 rep,
                 optimization_cut_off_fraction,
+                energy,
             );
             let exp = sim.run(unique_levels);
             sim.write_exp_file(&exp);
