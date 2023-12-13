@@ -1,6 +1,6 @@
 use clap::ArgGroup;
 use clap::Parser;
-use mc::EnergyInput;
+use mc::energy::EnergyInput;
 use mc::Simulation;
 use std::fs;
 use std::panic;
@@ -20,26 +20,35 @@ fn fmt_scient(num: &str) -> u64 {
         * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
 }
 
-fn file_or_energy(inp: &str, energy: mc::EnergyInput) -> mc::EnergyInput {
+fn file_or_energy(inp: &str, energy: EnergyInput) -> EnergyInput {
     if inp.starts_with("./") {
         let contents = fs::read_to_string(inp).expect("can't find energy file");
 
-        let mut string_iter = contents.split([';', ',']);
+        let mut string_iter = contents.split(',');
+
         match energy {
-            EnergyInput::LinearCn(energy_vec) => {
-                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+            EnergyInput::LinearCn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
+                }
                 EnergyInput::LinearCn(energy_vec)
             }
-            EnergyInput::Cn(energy_vec) => {
-                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+            EnergyInput::Cn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
+                }
                 EnergyInput::Cn(energy_vec)
             }
-            EnergyInput::LinearGcn(energy_vec) => {
-                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+            EnergyInput::LinearGcn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
+                }
                 EnergyInput::LinearGcn(energy_vec)
             }
-            EnergyInput::Gcn(energy_vec) => {
-                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+            EnergyInput::Gcn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().trim().parse::<i64>().unwrap();
+                }
                 EnergyInput::Gcn(energy_vec)
             }
         }
@@ -55,16 +64,22 @@ fn file_or_energy(inp: &str, energy: mc::EnergyInput) -> mc::EnergyInput {
                 }
                 EnergyInput::LinearCn(energy_vec)
             }
-            EnergyInput::Cn(energy_vec) => {
-                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+            EnergyInput::Cn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
+                }
                 EnergyInput::Cn(energy_vec)
             }
-            EnergyInput::LinearGcn(energy_vec) => {
-                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+            EnergyInput::LinearGcn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
+                }
                 EnergyInput::LinearGcn(energy_vec)
             }
-            EnergyInput::Gcn(energy_vec) => {
-                energy_vec.map(|_| string_iter.next().unwrap().parse::<i64>().unwrap());
+            EnergyInput::Gcn(mut energy_vec) => {
+                for x in energy_vec.iter_mut() {
+                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
+                }
                 EnergyInput::Gcn(energy_vec)
             }
         }
@@ -133,14 +148,15 @@ struct Args {
     unique_levels: i32,
 }
 
-fn file_paths(grid_folder: String) -> (String, String, String, String, String, String) {
+fn file_paths(grid_folder: String) -> (String, String, String, String, String, String, String) {
     (
-        format!("{}/pairlist", grid_folder),
+        format!("{}/nearest_neighbor", grid_folder),
+        format!("{}/next_nearest_neighbor", grid_folder),
         format!("{}/nn_pairlist", grid_folder),
         format!("{}/nnn_pairlist", grid_folder),
         format!("{}/atom_sites", grid_folder),
         format!("{}/nn_pair_no_intersec", grid_folder),
-        format!("{}/nnn_pair_no_intersec", grid_folder),
+        format!("{}/nnn_gcn_no_intersec.json", grid_folder),
     )
 }
 
@@ -163,6 +179,7 @@ fn main() {
     #[allow(unused_variables)]
     let (
         pairlist_file,
+        n_pairlist_file,
         nn_pairlist_file,
         nnn_pairlist_file,
         atom_sites,
@@ -184,12 +201,12 @@ fn main() {
 
     let energy = if args.e_l_cn.is_some() {
         file_or_energy(&args.e_l_cn.unwrap(), EnergyInput::LinearCn([0; 2]))
-    } else if args.e_l_cn.is_some() {
+    } else if args.e_cn.is_some() {
         file_or_energy(&args.e_cn.unwrap(), EnergyInput::Cn([0; 13]))
-    } else if args.e_l_cn.is_some() {
+    } else if args.e_l_gcn.is_some() {
         file_or_energy(&args.e_l_gcn.unwrap(), EnergyInput::LinearGcn([0; 2]))
-    } else if args.e_l_cn.is_some() {
-        file_or_energy(&args.e_gcn.unwrap(), EnergyInput::Gcn([0; 60]))
+    } else if args.e_gcn.is_some() {
+        file_or_energy(&args.e_gcn.unwrap(), EnergyInput::Gcn([0; 145]))
     } else {
         panic!("no energy")
     };
@@ -202,6 +219,7 @@ fn main() {
         let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let pairlist_file = pairlist_file.clone();
+        let n_pairlist_file = n_pairlist_file.clone();
         let nn_pair_no_int_file = nn_pair_no_int_file.clone();
         let nnn_pair_no_int_file = nnn_pair_no_int_file.clone();
         // let nn_pairlist_file = nn_pairlist_file.clone();
@@ -219,6 +237,7 @@ fn main() {
                 start_temperature,
                 save_folder,
                 pairlist_file,
+                n_pairlist_file,
                 nn_pair_no_int_file,
                 nnn_pair_no_int_file,
                 // nn_pairlist_file,

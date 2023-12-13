@@ -1,6 +1,7 @@
 use anyhow;
 use chemfiles::{Atom, Frame, Trajectory, UnitCell};
 use csv::Writer;
+use energy::EnergyInput;
 use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
@@ -15,7 +16,7 @@ use vasp_poscar::Poscar;
 
 // mod build_pairs;
 // mod energy_change;
-mod energy;
+pub mod energy;
 mod listdict;
 mod read_files;
 mod setup;
@@ -24,6 +25,7 @@ mod sim;
 pub use sim::Results;
 
 const CN: usize = 12;
+const GCN: usize = 54;
 const NN_PAIR_NUMBER: usize = 20;
 const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
 const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
@@ -41,16 +43,18 @@ pub struct Simulation {
     occ: Vec<u8>,
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     cn_metal: Vec<usize>,
+    gcn_metal: Vec<usize>,
     possible_moves: listdict::ListDict,
     // energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
+    nnn: HashMap<u32, [u32; GCN], fnv::FnvBuildHasher>,
     nn_pair_no_intersec: HashMap<u64, [[u32; NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
     nnn_pair_no_intersec:
-        HashMap<u64, [[u32; NNN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
+        HashMap<u64, [HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>; 2], fnv::FnvBuildHasher>,
     xsites_positions: Vec<[f64; 3]>,
     unit_cell: UnitCell,
-    cn_dict: [u32; CN + 1],
+    cn_dict: [u32; GCN + 1],
     save_folder: String,
     start_temperature: Option<f64>,
     temperature: f64,
@@ -73,6 +77,7 @@ impl Simulation {
         start_temperature: Option<f64>,
         save_folder_name: String,
         pairlist_file: String,
+        n_pairlist_file: String,
         nn_pair_no_int_file: String,
         nnn_pair_no_int_file: String,
         atom_sites: String,
@@ -85,6 +90,7 @@ impl Simulation {
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let nn = read_files::read_nn(&pairlist_file);
+        let nnn = read_files::read_nnn(&n_pairlist_file);
         let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
         let nnn_pair_no_intersec = read_files::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
 
@@ -101,7 +107,7 @@ impl Simulation {
             unit_cell_size[1][1] * GRID_SIZE[1] as f64,
             unit_cell_size[2][2] * GRID_SIZE[2] as f64,
         ]);
-        let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
+        let mut cn_dict: [u32; GCN + 1] = [0; GCN + 1];
 
         let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
         let (occ, onlyocc, number_all_atoms) = if input_file.is_some() {
@@ -118,6 +124,7 @@ impl Simulation {
             panic!("gib input atoms or input file");
         };
         let mut cn_metal: Vec<usize> = Vec::with_capacity(nsites as usize);
+
         for o in 0..nsites {
             let mut neighbors: u8 = 0;
             for o1 in nn[&o].iter() {
@@ -131,17 +138,47 @@ impl Simulation {
                 cn_dict[cn_metal[o as usize]] += 1;
             };
         }
+        let mut gcn_metal: Vec<usize> = Vec::with_capacity(nsites as usize);
+        for o in 0..nsites {
+            let mut gcn: usize = 0;
+            for o1 in nn[&o].iter() {
+                if occ[*o1 as usize] == 1 {
+                    gcn += cn_metal[*o1 as usize];
+                }
+            }
+            gcn_metal.push(gcn);
+            // if occ[o as usize] == 1 {
+            // cn_dict[gcn_metal[o as usize]] += 1;
+            // };
+        }
+        println!("{:?}", gcn_metal);
+
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
         for o in onlyocc.iter() {
-            let energy_1000: i64 = energy::energy_1000_calculation(&energy, cn_metal[*o as usize]);
-            total_energy_1000 += energy_1000;
+            match energy {
+                EnergyInput::LinearCn(_) | EnergyInput::Cn(_) => {
+                    let energy_1000: i64 =
+                        energy::energy_1000_calculation(&energy, cn_metal[*o as usize]);
+                    total_energy_1000 += energy_1000;
+                }
+
+                EnergyInput::LinearGcn(_) | EnergyInput::Gcn(_) => {
+                    let mut gcn = 0;
+                    for o1 in nn[o] {
+                        if occ[o1 as usize] != 0 {
+                            gcn += cn_metal[o1 as usize]
+                        }
+                    }
+                    total_energy_1000 += energy::energy_1000_calculation(&energy, gcn)
+                }
+            };
 
             for u in &nn[o] {
                 if occ[*u as usize] == 0 {
                     // >1 so that atoms cant leave the cluster
                     // <x cant move if all neighbors are occupied
-                    if cn_metal[*o as usize] < CN && cn_metal[*u as usize] > 1 {
+                    if cn_metal[*u as usize] > 1 {
                         possible_moves.add_item(*o, *u)
                     }
                 }
@@ -196,9 +233,11 @@ impl Simulation {
             occ,
             onlyocc,
             cn_metal,
+            gcn_metal,
             possible_moves,
             total_energy_1000,
             nn,
+            nnn,
             nn_pair_no_intersec,
             nnn_pair_no_intersec,
             xsites_positions,
@@ -289,17 +328,10 @@ impl Simulation {
                 EnergyInput::LinearCn(energy_l_cn) => energy::energy_diff_l_cn(
                     energy_l_cn,
                     self.cn_metal[move_from as usize],
-                    self.cn_metal[move_to as usize],
+                    self.cn_metal[move_to as usize] - 1,
                 ),
                 EnergyInput::Cn(energy_cn) => {
-                    let no_int = self.nn_pair_no_intersec[&(std::cmp::min(move_from, move_to)
-                        as u64
-                        + ((std::cmp::max(move_to, move_from) as u64) << 32))];
-                    let (to_change, from_change) = if move_to < move_from {
-                        (no_int[0], no_int[1])
-                    } else {
-                        (no_int[1], no_int[0])
-                    };
+                    let (from_change, to_change) = self.no_int_nn_from_move(move_from, move_to);
 
                     energy::energy_diff_cn(
                         energy_cn,
@@ -315,32 +347,81 @@ impl Simulation {
                         self.cn_metal[move_to as usize],
                     )
                 }
-                EnergyInput::LinearGcn(energy_l_gcn) => energy::energy_diff_l_cn(
-                    energy_l_gcn,
-                    self.cn_metal[move_from as usize],
-                    self.cn_metal[move_to as usize],
-                ),
+                EnergyInput::LinearGcn(energy_l_gcn) => {
+                    let (from_change, to_change) = self.no_int_nn_from_move(move_from, move_to);
+                    energy::energy_diff_l_gcn(
+                        energy_l_gcn,
+                        from_change
+                            .iter()
+                            .filter(|x| self.occ[**x as usize] != 0)
+                            .map(|x| {
+                                let mut gcn = 0;
+                                for o in self.nn[x] {
+                                    if self.occ[o as usize] != 0 {
+                                        gcn += self.cn_metal[o as usize]
+                                    }
+                                }
+                                gcn
+                            }),
+                        to_change
+                            .iter()
+                            .filter(|x| self.occ[**x as usize] != 0)
+                            .map(|x| {
+                                let mut gcn = 0;
+                                for o in self.nn[x] {
+                                    if self.occ[o as usize] != 0 {
+                                        gcn += self.cn_metal[o as usize]
+                                    }
+                                }
+                                gcn
+                            }),
+                        self.cn_metal[move_from as usize],
+                        self.cn_metal[move_to as usize],
+                    )
+                }
                 EnergyInput::Gcn(energy_gcn) => {
-                    let no_int = self.nnn_pair_no_intersec[&(std::cmp::min(move_from, move_to)
-                        as u64
-                        + ((std::cmp::max(move_to, move_from) as u64) << 32))];
-                    let (to_change, from_change) = if move_to < move_from {
-                        (no_int[0], no_int[1])
-                    } else {
-                        (no_int[1], no_int[0])
-                    };
+                    let (from_change, to_change) =
+                        no_int_nnn_from_move(move_from, move_to, &self.nnn_pair_no_intersec);
+                    println!(
+                        "gcn: {:?} cn: {:?}",
+                        self.gcn_metal[move_to as usize], self.cn_metal[move_from as usize]
+                    );
                     energy::energy_diff_gcn(
                         energy_gcn,
                         from_change
                             .iter()
-                            .filter(|x| self.occ[**x as usize] != 0)
-                            .map(|x| self.cn_metal[*x as usize]),
+                            .filter(|(atom, _)| self.occ[**atom as usize] != 0)
+                            .map(|(atom, neighbors)| {
+                                let old_gcn = self.gcn_metal[*atom as usize];
+                                let mut new_gcn = self.gcn_metal[*atom as usize];
+                                neighbors
+                                    .iter()
+                                    .filter(|x| self.occ[**x as usize] != 0)
+                                    .for_each(|x| {
+                                        new_gcn += (self.cn_metal[*x as usize] - 1)
+                                            - self.cn_metal[*x as usize]
+                                    });
+                                (old_gcn, new_gcn)
+                            }),
                         to_change
                             .iter()
-                            .filter(|x| self.occ[**x as usize] != 0)
-                            .map(|x| self.cn_metal[*x as usize]),
-                        self.cn_metal[move_from as usize],
-                        self.cn_metal[move_to as usize],
+                            .filter(|(atom, _)| self.occ[**atom as usize] != 0)
+                            .map(|(atom, neighbors)| {
+                                let old_gcn = self.gcn_metal[*atom as usize];
+                                let mut new_gcn = self.gcn_metal[*atom as usize];
+                                neighbors
+                                    .iter()
+                                    .filter(|x| self.occ[**x as usize] != 0)
+                                    .for_each(|x| {
+                                        new_gcn += (self.cn_metal[*x as usize] + 1)
+                                            - self.cn_metal[*x as usize]
+                                    });
+                                (old_gcn, new_gcn)
+                            }),
+                        self.gcn_metal[move_from as usize],
+                        self.gcn_metal[move_to as usize] + self.cn_metal[move_to as usize]
+                            - 1
+                            - self.cn_metal[move_from as usize],
                     )
                 }
             };
@@ -365,16 +446,12 @@ impl Simulation {
                 iiter,
                 cut_off_perc,
             ) {
-                // println!("{:?}", self.possible_moves.moves);
-                // println!("{:?}", self.cn_metal);
                 self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
                 self.update_possible_moves(move_from, move_to);
                 if let Some(map) = &mut self.heat_map {
                     map[move_to as usize] += 1;
                     map[move_from as usize] += 1;
                 }
-                // println!("{:?}", self.possible_moves.moves);
-                // println!("{:?}\n", self.cn_metal);
             }
             self.cond_snap_and_heat_map(&iiter);
 
@@ -615,6 +692,7 @@ impl Simulation {
         if SAVE_ENTIRE_SIM || is_recording_sections {
             self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         }
+        // let (from_change, to_change) = self.no_int_from_move(move_from, move_to);
         for o in self.nn[&move_from] {
             if (SAVE_ENTIRE_SIM || is_recording_sections)
                 && self.occ[o as usize] == 1
@@ -634,6 +712,48 @@ impl Simulation {
                 self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
             }
             self.cn_metal[o as usize] += 1;
+        }
+
+        match self.energy {
+            EnergyInput::LinearCn(_) | EnergyInput::Cn(_) => {}
+            EnergyInput::LinearGcn(_) | EnergyInput::Gcn(_) => {
+                let (from_change, to_change) =
+                    no_int_nnn_from_move(move_from, move_to, &self.nnn_pair_no_intersec);
+                for o in self.nn[&move_from] {
+                    if self.occ[o as usize] != 0 || o == move_to {
+                        self.gcn_metal[move_from as usize] += self.cn_metal[o as usize];
+                        if o == move_to {
+                            continue;
+                        }
+                        self.gcn_metal[move_from as usize] -= self.cn_metal[o as usize] + 1;
+                    }
+                }
+                for o in self.nn[&move_to] {
+                    if self.occ[o as usize] != 0 || o == move_from {
+                        self.gcn_metal[move_to as usize] -= self.cn_metal[o as usize] - 1;
+                        if o == move_from {
+                            continue;
+                        }
+                        self.gcn_metal[move_to as usize] += self.cn_metal[o as usize];
+                    }
+                }
+                for (atom, neighbors) in from_change {
+                    let mut gcn_dif = 0;
+                    for n in neighbors {
+                        gcn_dif -= self.cn_metal[*n as usize] + 1;
+                        gcn_dif += self.cn_metal[*n as usize];
+                    }
+                    self.gcn_metal[*atom as usize] += gcn_dif;
+                }
+                for (atom, neighbors) in to_change {
+                    let mut gcn_dif = 0;
+                    for n in neighbors {
+                        gcn_dif -= self.cn_metal[*n as usize] - 1;
+                        gcn_dif += self.cn_metal[*n as usize];
+                    }
+                    self.gcn_metal[*atom as usize] += gcn_dif;
+                }
+            }
         }
         if SAVE_ENTIRE_SIM || is_recording_sections {
             self.cn_dict[self.cn_metal[move_to as usize]] += 1;
@@ -700,6 +820,36 @@ impl Simulation {
             }
         }
     }
+    fn no_int_nn_from_move(&self, move_from: u32, move_to: u32) -> ([u32; 7], [u32; 7]) {
+        let no_int = self.nn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
+            + ((std::cmp::max(move_to, move_from) as u64) << 32))];
+        if move_to > move_from {
+            (no_int[0], no_int[1])
+        } else {
+            (no_int[1], no_int[0])
+        }
+    }
+}
+
+fn no_int_nnn_from_move(
+    move_from: u32,
+    move_to: u32,
+    nnn_pair_no_intersec: &HashMap<
+        u64,
+        [HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>; 2],
+        fnv::FnvBuildHasher,
+    >,
+) -> (
+    &HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+    &HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+) {
+    let no_int = &nnn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
+        + ((std::cmp::max(move_to, move_from) as u64) << 32))];
+    if move_to > move_from {
+        (&no_int[0], &no_int[1])
+    } else {
+        (&no_int[1], &no_int[0])
+    }
 }
 
 pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> {
@@ -764,12 +914,4 @@ pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> 
     }
 
     Ok(())
-}
-
-#[derive(Clone, Debug)]
-pub enum EnergyInput {
-    LinearCn([i64; 2]),
-    Cn([i64; 13]),
-    LinearGcn([i64; 2]),
-    Gcn([i64; 60]),
 }
