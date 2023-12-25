@@ -15,7 +15,7 @@ fn pairing_function(a: u64, b: u64) -> u64 {
 #[derive(Clone)]
 pub struct ListDict {
     move_to_position: HashMap<u64, usize, ahash::RandomState>,
-    moves: Vec<(u32, u32)>,
+    pub moves: Vec<(u32, u32)>,
 }
 
 impl ListDict {

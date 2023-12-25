@@ -94,7 +94,15 @@ pub fn read_nnn(pairlist_file: &str) -> HashMap<u32, [u32; super::GCN], FnvBuild
 }
 pub fn read_nnn_pair_no_intersec(
     nnn_pairlist_file: &str,
-) -> HashMap<u64, [HashMap<u32, Vec<u32>, FnvBuildHasher>; 2], FnvBuildHasher> {
+) -> HashMap<
+    u64,
+    (
+        HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+        HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+        HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+    ),
+    fnv::FnvBuildHasher,
+> {
     let nnn_pairlist =
         fs::File::open(nnn_pairlist_file).expect("Should have been able to read the file");
 
@@ -102,12 +110,27 @@ pub fn read_nnn_pair_no_intersec(
 
     let nnn_pair_no_bit_shifting: HashMap<
         u32,
-        HashMap<u32, [HashMap<u32, Vec<u32>, FnvBuildHasher>; 2], FnvBuildHasher>,
+        HashMap<
+            u32,
+            (
+                HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+                HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+                HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+            ),
+            FnvBuildHasher,
+        >,
         FnvBuildHasher,
     > = serde_json::from_reader(reader).unwrap();
 
-    let mut nnn_pair: HashMap<u64, [HashMap<u32, Vec<u32>, FnvBuildHasher>; 2], FnvBuildHasher> =
-        FnvHashMap::with_capacity_and_hasher(5400, Default::default());
+    let mut nnn_pair: HashMap<
+        u64,
+        (
+            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
+            HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+        ),
+        fnv::FnvBuildHasher,
+    > = FnvHashMap::with_capacity_and_hasher(5400, Default::default());
     for (k1, d1) in nnn_pair_no_bit_shifting.into_iter() {
         for (k2, d2) in d1.into_iter() {
             nnn_pair.insert((k1 as u64 + ((k2 as u64) << 32)), d2);

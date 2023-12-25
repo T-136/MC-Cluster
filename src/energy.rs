@@ -81,16 +81,18 @@ where
 
     energy_diff_1000
 }
-pub fn energy_diff_gcn<I, O>(
+pub fn energy_diff_gcn<I, O, P>(
     energy: [i64; 145],
     cn_from_list: I,
     cn_to_list: O,
+    intersect_change: P,
     move_from_gcn: usize,
     move_to_gcn: usize,
 ) -> i64
 where
     I: Iterator<Item = (usize, usize)>,
     O: Iterator<Item = (usize, usize)>,
+    P: Iterator<Item = (usize, usize)>,
 {
     let mut energy_diff_1000 = 0;
     for (gcn_from_old, gcn_from_new) in cn_from_list {
@@ -101,8 +103,12 @@ where
         energy_diff_1000 -= energy[gcn_to_old];
         energy_diff_1000 += energy[gcn_to_new];
     }
-    energy_diff_1000 -= energy[move_from_gcn];
+    for (gcn_inter_old, gcn_inter_new) in intersect_change {
+        energy_diff_1000 -= energy[gcn_inter_old];
+        energy_diff_1000 += energy[gcn_inter_new];
+    }
     energy_diff_1000 += energy[move_to_gcn];
+    energy_diff_1000 -= energy[move_from_gcn];
 
     energy_diff_1000
 }
