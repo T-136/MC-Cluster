@@ -387,11 +387,12 @@ impl Simulation {
                         no_int_nnn_from_move(move_from, move_to, &self.nnn_pair_no_intersec);
                     let (from_change_nn, to_change_nn) =
                         self.no_int_nn_from_move(move_from, move_to);
-                    let mut gcn_add = 0;
+
+                    let mut cn_from = 0;
                     to_change_nn
                         .iter()
-                        .filter(|atom| self.occ[**atom as usize] != 0)
-                        .for_each(|atom| gcn_add += self.cn_metal[*atom as usize] + 1);
+                        .filter(|x| self.occ[**x as usize] != 0)
+                        .for_each(|_| cn_from += 1);
 
                     energy::energy_diff_gcn(
                         energy_gcn,
@@ -476,10 +477,8 @@ impl Simulation {
                                 (old_gcn, new_gcn)
                             }),
                         self.gcn_metal[move_from as usize],
-                        gcn_add,
-                        // self.gcn_metal[move_to as usize] + self.cn_metal[move_to as usize]
-                        //     - 1
-                        //     - self.cn_metal[move_from as usize],
+                        self.gcn_metal[move_to as usize] - self.cn_metal[move_from as usize]
+                            + cn_from,
                     )
                 }
             };
