@@ -155,9 +155,6 @@ impl Simulation {
                 }
             }
             gcn_metal.push(gcn);
-            // if occ[o as usize] == 1 {
-            // cn_dict[gcn_metal[o as usize]] += 1;
-            // };
         }
         println!("{:?}", gcn_metal);
 
@@ -334,7 +331,8 @@ impl Simulation {
                     self.cn_metal[move_to as usize] - 1,
                 ),
                 EnergyInput::Cn(energy_cn) => {
-                    let (from_change, to_change) = self.no_int_nn_from_move(move_from, move_to);
+                    let (from_change, to_change) =
+                        no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
 
                     energy::energy_diff_cn(
                         energy_cn,
@@ -351,7 +349,8 @@ impl Simulation {
                     )
                 }
                 EnergyInput::LinearGcn(energy_l_gcn) => {
-                    let (from_change, to_change) = self.no_int_nn_from_move(move_from, move_to);
+                    let (from_change, to_change) =
+                        no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
                     energy::energy_diff_l_gcn(
                         energy_l_gcn,
                         from_change
@@ -386,7 +385,7 @@ impl Simulation {
                     let (from_change, to_change, intersect, is_reverse) =
                         no_int_nnn_from_move(move_from, move_to, &self.nnn_pair_no_intersec);
                     let (from_change_nn, to_change_nn) =
-                        self.no_int_nn_from_move(move_from, move_to);
+                        no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
 
                     let mut cn_from = 0;
                     to_change_nn
@@ -410,10 +409,7 @@ impl Simulation {
                                             || **x == move_from
                                     })
                                     .for_each(|x| {
-                                        if x == &move_to {
-                                            panic!("move from in to change energy");
-                                            // new_gcn += self.cn_metal[*x as usize] - 1
-                                        } else if x == &move_from {
+                                        if x == &move_from {
                                             new_gcn -= self.cn_metal[*x as usize]
                                         } else {
                                             new_gcn -= 1
@@ -437,9 +433,6 @@ impl Simulation {
                                     .for_each(|x| {
                                         if x == &move_to {
                                             new_gcn += self.cn_metal[*x as usize] - 1
-                                        } else if x == &move_from {
-                                            panic!("move from in to change energy");
-                                            // new_gcn -= self.cn_metal[*x as usize]
                                         } else {
                                             new_gcn += 1
                                         }
@@ -514,7 +507,6 @@ impl Simulation {
 
             if iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
-            // if iiter + 1 == self.niter
             {
                 if let Some(x) = self.save_lowest_energy(&iiter, &mut lowest_energy_struct) {
                     lowest_e_onlyocc = x;
@@ -675,7 +667,6 @@ impl Simulation {
         onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     ) {
         let mut xyz: Vec<[f64; 3]> = Vec::new();
-        // println!("{:?}", self.onlyocc);
         for (j, ii) in onlyocc.iter().enumerate() {
             xyz.insert(j, self.xsites_positions[*ii as usize]);
         }
@@ -723,7 +714,6 @@ impl Simulation {
         cut_off_perc: f64,
     ) -> bool {
         const KB: f64 = 8.6173324e-5;
-        // println!("{:?}", energy1000_diff);
         if energy1000_diff <= 0 {
             return true;
         }
@@ -776,7 +766,8 @@ impl Simulation {
             EnergyInput::LinearGcn(_) | EnergyInput::Gcn(_) => {
                 let (from_change, to_change, intersect, is_reverse) =
                     no_int_nnn_from_move(move_from, move_to, &self.nnn_pair_no_intersec);
-                let (from_change_nn, to_change_nn) = self.no_int_nn_from_move(move_from, move_to);
+                let (from_change_nn, to_change_nn) =
+                    no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
                 for o in from_change_nn {
                     if o == move_to {
                         continue;
@@ -796,36 +787,26 @@ impl Simulation {
                 }
                 self.gcn_metal[move_to as usize] -= self.cn_metal[move_from as usize] - 1;
                 for (atom, neighbors) in to_change {
-                    // println!("gcn bef to {:?}", self.gcn_metal[*atom as usize]);
-                    // let mut gcn_diff: i32 = 0;
                     for n in neighbors {
-                        // println!("{:?}", neighbors);
-                        // println!("gcn: {:?}", self.gcn_metal[*atom as usize]);
                         if n == &move_to {
-                            // println!("cn move to{:?}", self.cn_metal[*n as usize]);
-                            // gcn_diff += self.cn_metal[*n as usize] as i32;
                             self.gcn_metal[*atom as usize] += self.cn_metal[*n as usize];
                             continue;
                         }
+                        #[cfg(debug_assertions)]
                         if n == &move_from {
                             panic!("found move from {:?}, move_from {}", neighbors, move_from);
-                            continue;
                         }
                         if self.occ[*n as usize] != 0 {
-                            // println!("+1",);
-                            // gcn_diff += 1;
                             self.gcn_metal[*atom as usize] += 1;
-                            // self.gcn_metal[*atom as usize] += self.cn_metal[*n as usize];
-                            // self.gcn_metal[*atom as usize] -= self.cn_metal[*n as usize] - 1;
                         }
                     }
                 }
                 for (atom, neighbors) in from_change {
                     // println!("gcn bef{:?}", self.gcn_metal[*atom as usize]);
                     for n in neighbors {
+                        #[cfg(debug_assertions)]
                         if n == &move_to {
                             panic!("found move to");
-                            continue;
                         }
                         if n == &move_from {
                             // println!("cn move from {:?}", self.cn_metal[*n as usize] - 1);
@@ -835,70 +816,35 @@ impl Simulation {
                         if self.occ[*n as usize] != 0 {
                             // println!("-1",);
                             self.gcn_metal[*atom as usize] -= 1;
-                            assert!(
-                                self.gcn_metal[*atom as usize] < 144,
-                                "should be below 144 is: {:?}",
-                                self.gcn_metal[*atom as usize]
-                            );
-                            // if self.gcn_metal[*atom as usize] > 144 {
-                            //     panic!("{:?}", self.gcn_metal[*atom as usize]);
-                            // }
-                            // self.gcn_metal[*atom as usize] += self.cn_metal[*n as usize];
-                            // self.gcn_metal[*atom as usize] -= self.cn_metal[*n as usize] + 1;
                         }
                     }
-                    // println!("atom f{:?}", atom);
-                    // println!("gcn after{:?}", self.gcn_metal[*atom as usize]);
                 }
                 for (atom, neighbors) in intersect {
                     if !is_reverse {
                         for n in &neighbors[0] {
                             if self.occ[*n as usize] != 0 {
                                 self.gcn_metal[*atom as usize] -= 1;
-                                assert!(
-                                    self.gcn_metal[*atom as usize] < 144,
-                                    "should be below 144 is: {:?}",
-                                    self.gcn_metal[*atom as usize]
-                                );
                             }
                         }
                         for n in &neighbors[1] {
                             if self.occ[*n as usize] != 0 {
-                                // println!("+1");
                                 self.gcn_metal[*atom as usize] += 1;
-                                assert!(
-                                    self.gcn_metal[*atom as usize] < 144,
-                                    "should be below 144 is: {:?}",
-                                    self.gcn_metal[*atom as usize]
-                                );
                             }
                         }
                     } else if is_reverse {
                         for n in &neighbors[1] {
                             if self.occ[*n as usize] != 0 {
                                 self.gcn_metal[*atom as usize] -= 1;
-                                assert!(
-                                    self.gcn_metal[*atom as usize] < 144,
-                                    "should be below 144 is: {:?}",
-                                    self.gcn_metal[*atom as usize]
-                                );
                             }
                         }
                         for n in &neighbors[0] {
                             if self.occ[*n as usize] != 0 {
-                                // println!("+1");
                                 self.gcn_metal[*atom as usize] += 1;
-                                assert!(
-                                    self.gcn_metal[*atom as usize] < 144,
-                                    "should be below 144 is: {:?}",
-                                    self.gcn_metal[*atom as usize]
-                                );
                             }
                         }
                     }
                     for n in &neighbors[2] {
                         if n == &move_to {
-                            // println!("+{:?}", self.cn_metal[*n as usize]);
                             self.gcn_metal[*atom as usize] += self.cn_metal[*n as usize];
                             continue;
                         }
@@ -908,7 +854,6 @@ impl Simulation {
                         }
                         panic!("neither start nor end found");
                     }
-                    // println!("gcn after{:?}", self.gcn_metal[*atom as usize]);
                 }
             }
         }
@@ -917,7 +862,6 @@ impl Simulation {
         }
 
         self.total_energy_1000 += energy1000_diff;
-        // println!("gcn after{:?}", self.gcn_metal);
     }
 
     fn update_possible_moves(&mut self, move_from: u32, move_to: u32) {
@@ -948,7 +892,6 @@ impl Simulation {
     }
     fn cond_snap_and_heat_map(&mut self, iiter: &u64) {
         const NUMBER_HEAT_MAP_SECTIONS: u64 = 200;
-        // self.heat_map[move_to as usize] += 1;
 
         if let Some(snap_shot_sections) = &mut self.snap_shot_sections {
             if (iiter + 1) % (self.niter / NUMBER_HEAT_MAP_SECTIONS) == 0 {
@@ -978,14 +921,18 @@ impl Simulation {
             }
         }
     }
-    fn no_int_nn_from_move(&self, move_from: u32, move_to: u32) -> ([u32; 7], [u32; 7]) {
-        let no_int = self.nn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
-            + ((std::cmp::max(move_to, move_from) as u64) << 32))];
-        if move_to > move_from {
-            (no_int[0], no_int[1])
-        } else {
-            (no_int[1], no_int[0])
-        }
+}
+fn no_int_nn_from_move(
+    move_from: u32,
+    move_to: u32,
+    nn_pair_no_intersec: &HashMap<u64, [[u32; NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
+) -> ([u32; 7], [u32; 7]) {
+    let no_int = nn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
+        + ((std::cmp::max(move_to, move_from) as u64) << 32))];
+    if move_to > move_from {
+        (no_int[0], no_int[1])
+    } else {
+        (no_int[1], no_int[0])
     }
 }
 
