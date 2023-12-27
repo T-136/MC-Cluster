@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
+use std::sync::Arc;
 use std::{cmp, eprint, fs, println, usize};
 use vasp_poscar::Poscar;
 
@@ -22,6 +23,7 @@ mod listdict;
 mod read_files;
 mod setup;
 mod sim;
+mod write_save;
 
 pub use sim::Results;
 
@@ -48,6 +50,22 @@ pub struct Simulation {
     possible_moves: listdict::ListDict,
     // energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
+    cn_dict: [u32; GCN + 1],
+    save_folder: String,
+    start_temperature: Option<f64>,
+    temperature: f64,
+    cn_dict_sections: Vec<HashMap<u8, f64>>,
+    energy_sections_list: Vec<f64>,
+    optimization_cut_off_fraction: Vec<u64>,
+    unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
+    heat_map: Option<Vec<u64>>,
+    snap_shot_sections: Option<Vec<Vec<u8>>>,
+    heat_map_sections: Vec<Vec<u64>>,
+    energy: EnergyInput,
+    gridstructure: Arc<GridStructure>,
+}
+
+pub struct GridStructure {
     nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
     nnn: HashMap<u32, [u32; GCN], fnv::FnvBuildHasher>,
     nn_pair_no_intersec: HashMap<u64, [[u32; NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
@@ -61,13 +79,53 @@ pub struct Simulation {
         fnv::FnvBuildHasher,
     >,
     xsites_positions: Vec<[f64; 3]>,
-    unit_cell: UnitCell,
-    cn_dict: [u32; GCN + 1],
-    save_folder: String,
-    start_temperature: Option<f64>,
-    temperature: f64,
-    cn_dict_sections: Vec<HashMap<u8, f64>>,
-    energy_sections_list: Vec<f64>,
+    unit_cell: [f64; 3],
+}
+
+impl GridStructure {
+    pub fn new(
+        pairlist_file: String,
+        n_pairlist_file: String,
+        nn_pair_no_int_file: String,
+        nnn_pair_no_int_file: String,
+        atom_sites: String,
+        bulk_file_name: String,
+    ) -> GridStructure {
+        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
+        let nn = read_files::read_nn(&pairlist_file);
+        let nnn = read_files::read_nnn(&n_pairlist_file);
+        let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
+        let nnn_pair_no_intersec = read_files::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
+
+        let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
+            panic!(
+                "Could not parse '{:?}': {}",
+                stringify!(bulk_file_name),
+                err
+            )
+        });
+        let unit_cell_size = bulk.unscaled_lattice_vectors();
+        let unit_cell = [
+            unit_cell_size[0][0] * GRID_SIZE[0] as f64,
+            unit_cell_size[1][1] * GRID_SIZE[1] as f64,
+            unit_cell_size[2][2] * GRID_SIZE[2] as f64,
+        ];
+
+        let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
+
+        GridStructure {
+            nn,
+            nnn,
+            nn_pair_no_intersec,
+            nnn_pair_no_intersec,
+            xsites_positions,
+            unit_cell,
+        }
+    }
+}
+
+// #[derive(Clone)]
+pub struct Settings {
     optimization_cut_off_fraction: Vec<u64>,
     unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
     heat_map: Option<Vec<u64>>,
@@ -84,49 +142,49 @@ impl Simulation {
         temperature: f64,
         start_temperature: Option<f64>,
         save_folder_name: String,
-        pairlist_file: String,
-        n_pairlist_file: String,
-        nn_pair_no_int_file: String,
-        nnn_pair_no_int_file: String,
-        atom_sites: String,
         write_snap_shots: bool,
         is_heat_map: bool,
-        bulk_file_name: String,
+        // bulk_file_name: String,
         repetition: usize,
         optimization_cut_off_fraction: Vec<u64>,
         energy: EnergyInput,
+        gridstructure: Arc<GridStructure>,
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
-        let nn = read_files::read_nn(&pairlist_file);
-        let nnn = read_files::read_nnn(&n_pairlist_file);
-        let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
-        let nnn_pair_no_intersec = read_files::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
-
-        let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
-            panic!(
-                "Could not parse '{:?}': {}",
-                stringify!(bulk_file_name),
-                err
-            )
-        });
-        let unit_cell_size = bulk.unscaled_lattice_vectors();
-        let unit_cell = UnitCell::new([
-            unit_cell_size[0][0] * GRID_SIZE[0] as f64,
-            unit_cell_size[1][1] * GRID_SIZE[1] as f64,
-            unit_cell_size[2][2] * GRID_SIZE[2] as f64,
-        ]);
+        // let nn = read_files::read_nn(&pairlist_file);
+        // let nnn = read_files::read_nnn(&n_pairlist_file);
+        // let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
+        // let nnn_pair_no_intersec = read_files::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
+        //
+        // let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
+        //     panic!(
+        //         "Could not parse '{:?}': {}",
+        //         stringify!(bulk_file_name),
+        //         err
+        //     )
+        // });
+        // let unit_cell_size = bulk.unscaled_lattice_vectors();
+        // let unit_cell = UnitCell::new([
+        //     unit_cell_size[0][0] * GRID_SIZE[0] as f64,
+        //     unit_cell_size[1][1] * GRID_SIZE[1] as f64,
+        //     unit_cell_size[2][2] * GRID_SIZE[2] as f64,
+        // ]);
         let mut cn_dict: [u32; GCN + 1] = [0; GCN + 1];
-
-        let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
+        // let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
         let (occ, onlyocc, number_all_atoms) = if input_file.is_some() {
             let xyz = read_files::read_sample(&input_file.unwrap());
-            let (occ, onlyocc) = setup::occ_onlyocc_from_xyz(&xyz, nsites, &xsites_positions);
+            let (occ, onlyocc) =
+                setup::occ_onlyocc_from_xyz(&xyz, nsites, &gridstructure.xsites_positions);
             let number_of_atoms: u32 = onlyocc.len() as u32;
             (occ, onlyocc, number_of_atoms)
         } else if atoms_input.is_some() {
             let number_of_atom = atoms_input.unwrap();
-            let (occ, onlyocc) =
-                setup::create_input_cluster(&atoms_input.unwrap(), &xsites_positions, &nn, nsites);
+            let (occ, onlyocc) = setup::create_input_cluster(
+                &atoms_input.unwrap(),
+                &gridstructure.xsites_positions,
+                &gridstructure.nn,
+                nsites,
+            );
             (occ, onlyocc, number_of_atom)
         } else {
             panic!("gib input atoms or input file");
@@ -135,7 +193,7 @@ impl Simulation {
 
         for o in 0..nsites {
             let mut neighbors: u8 = 0;
-            for o1 in nn[&o].iter() {
+            for o1 in gridstructure.nn[&o].iter() {
                 if occ[*o1 as usize] == 1 {
                     // cn.entry(o).and_modify(|x| *x += 1).or_insert(1);
                     neighbors += 1;
@@ -149,7 +207,7 @@ impl Simulation {
         let mut gcn_metal: Vec<usize> = Vec::with_capacity(nsites as usize);
         for o in 0..nsites {
             let mut gcn: usize = 0;
-            for o1 in nn[&o].iter() {
+            for o1 in gridstructure.nn[&o].iter() {
                 if occ[*o1 as usize] == 1 {
                     gcn += cn_metal[*o1 as usize];
                 }
@@ -174,7 +232,7 @@ impl Simulation {
                 }
             };
 
-            for u in &nn[o] {
+            for u in &gridstructure.nn[o] {
                 if occ[*u as usize] == 0 {
                     // >1 so that atoms cant leave the cluster
                     // <x cant move if all neighbors are occupied
@@ -236,12 +294,6 @@ impl Simulation {
             gcn_metal,
             possible_moves,
             total_energy_1000,
-            nn,
-            nnn,
-            nn_pair_no_intersec,
-            nnn_pair_no_intersec,
-            xsites_positions,
-            unit_cell,
             cn_dict,
             save_folder: sub_folder,
             start_temperature,
@@ -254,6 +306,7 @@ impl Simulation {
             heat_map,
             heat_map_sections,
             energy,
+            gridstructure: gridstructure,
         }
     }
 
@@ -331,8 +384,11 @@ impl Simulation {
                     self.cn_metal[move_to as usize] - 1,
                 ),
                 EnergyInput::Cn(energy_cn) => {
-                    let (from_change, to_change) =
-                        no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
+                    let (from_change, to_change) = no_int_nn_from_move(
+                        move_from,
+                        move_to,
+                        &self.gridstructure.nn_pair_no_intersec,
+                    );
 
                     energy::energy_diff_cn(
                         energy_cn,
@@ -349,8 +405,11 @@ impl Simulation {
                     )
                 }
                 EnergyInput::LinearGcn(energy_l_gcn) => {
-                    let (from_change, to_change) =
-                        no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
+                    let (from_change, to_change) = no_int_nn_from_move(
+                        move_from,
+                        move_to,
+                        &self.gridstructure.nn_pair_no_intersec,
+                    );
                     energy::energy_diff_l_gcn(
                         energy_l_gcn,
                         from_change
@@ -358,7 +417,7 @@ impl Simulation {
                             .filter(|x| self.occ[**x as usize] != 0)
                             .map(|x| {
                                 let mut gcn = 0;
-                                for o in self.nn[x] {
+                                for o in self.gridstructure.nn[x] {
                                     if self.occ[o as usize] != 0 {
                                         gcn += self.cn_metal[o as usize]
                                     }
@@ -370,7 +429,7 @@ impl Simulation {
                             .filter(|x| self.occ[**x as usize] != 0)
                             .map(|x| {
                                 let mut gcn = 0;
-                                for o in self.nn[x] {
+                                for o in self.gridstructure.nn[x] {
                                     if self.occ[o as usize] != 0 {
                                         gcn += self.cn_metal[o as usize]
                                     }
@@ -382,10 +441,16 @@ impl Simulation {
                     )
                 }
                 EnergyInput::Gcn(energy_gcn) => {
-                    let (from_change, to_change, intersect, is_reverse) =
-                        no_int_nnn_from_move(move_from, move_to, &self.nnn_pair_no_intersec);
-                    let (from_change_nn, to_change_nn) =
-                        no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
+                    let (from_change, to_change, intersect, is_reverse) = no_int_nnn_from_move(
+                        move_from,
+                        move_to,
+                        &self.gridstructure.nnn_pair_no_intersec,
+                    );
+                    let (from_change_nn, to_change_nn) = no_int_nn_from_move(
+                        move_from,
+                        move_to,
+                        &self.gridstructure.nn_pair_no_intersec,
+                    );
 
                     let mut cn_from = 0;
                     to_change_nn
@@ -529,7 +594,12 @@ impl Simulation {
             let mut trajectory_lowest_energy =
                 Trajectory::open(self.save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
 
-            self.write_occ_as_xyz(&mut trajectory_lowest_energy, lowest_e_onlyocc);
+            write_save::write_occ_as_xyz(
+                &mut trajectory_lowest_energy,
+                lowest_e_onlyocc,
+                &self.gridstructure.xsites_positions,
+                &self.gridstructure.unit_cell,
+            );
         }
 
         if self.heat_map.is_some() {
@@ -661,27 +731,6 @@ impl Simulation {
         }
     }
 
-    fn write_occ_as_xyz(
-        &self,
-        trajectory: &mut Trajectory,
-        onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
-    ) {
-        let mut xyz: Vec<[f64; 3]> = Vec::new();
-        for (j, ii) in onlyocc.iter().enumerate() {
-            xyz.insert(j, self.xsites_positions[*ii as usize]);
-        }
-        let mut frame = Frame::new();
-        frame.set_cell(&self.unit_cell);
-
-        for atom in xyz.into_iter() {
-            frame.add_atom(&Atom::new("Pt"), [atom[0], atom[1], atom[2]], None);
-        }
-
-        trajectory
-            .write(&frame)
-            .unwrap_or_else(|x| eprintln!("{}", x));
-    }
-
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
         let heating_temp = 3000.;
         if self.start_temperature.is_some() {
@@ -740,7 +789,7 @@ impl Simulation {
             self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
         }
         // let (from_change, to_change) = self.no_int_from_move(move_from, move_to);
-        for o in self.nn[&move_from] {
+        for o in self.gridstructure.nn[&move_from] {
             if (SAVE_ENTIRE_SIM || is_recording_sections)
                 && self.occ[o as usize] == 1
                 && o != move_to
@@ -750,7 +799,7 @@ impl Simulation {
             }
             self.cn_metal[o as usize] -= 1;
         }
-        for o in self.nn[&move_to] {
+        for o in self.gridstructure.nn[&move_to] {
             if (SAVE_ENTIRE_SIM || is_recording_sections)
                 && self.occ[o as usize] == 1
                 && o != move_from
@@ -764,10 +813,16 @@ impl Simulation {
         match self.energy {
             EnergyInput::LinearCn(_) | EnergyInput::Cn(_) => {}
             EnergyInput::LinearGcn(_) | EnergyInput::Gcn(_) => {
-                let (from_change, to_change, intersect, is_reverse) =
-                    no_int_nnn_from_move(move_from, move_to, &self.nnn_pair_no_intersec);
-                let (from_change_nn, to_change_nn) =
-                    no_int_nn_from_move(move_from, move_to, &self.nn_pair_no_intersec);
+                let (from_change, to_change, intersect, is_reverse) = no_int_nnn_from_move(
+                    move_from,
+                    move_to,
+                    &self.gridstructure.nnn_pair_no_intersec,
+                );
+                let (from_change_nn, to_change_nn) = no_int_nn_from_move(
+                    move_from,
+                    move_to,
+                    &self.gridstructure.nn_pair_no_intersec,
+                );
                 for o in from_change_nn {
                     if o == move_to {
                         continue;
@@ -866,7 +921,7 @@ impl Simulation {
 
     fn update_possible_moves(&mut self, move_from: u32, move_to: u32) {
         self.possible_moves.remove_item(move_from, move_to);
-        for neighbor_atom in self.nn[&move_from] {
+        for neighbor_atom in self.gridstructure.nn[&move_from] {
             if self.occ[neighbor_atom as usize] == 0 {
                 self.possible_moves.remove_item(move_from, neighbor_atom);
             }
@@ -878,7 +933,7 @@ impl Simulation {
             }
         }
 
-        for empty_neighbor in self.nn[&move_to] {
+        for empty_neighbor in self.gridstructure.nn[&move_to] {
             if self.occ[empty_neighbor as usize] == 1 {
                 self.possible_moves.remove_item(empty_neighbor, move_to);
             }
@@ -1070,6 +1125,15 @@ mod tests {
             495, 462, 429, 396, 363, 330, 297, 264, 231, 198, 165, 132, 99, 66, 33, 0,
         ]);
 
+        let gridstructure = GridStructure::new(
+            pairlist_file,
+            n_pairlist_file,
+            nn_pair_no_int_file,
+            nnn_pair_no_int_file,
+            atom_sites,
+            String::from("../input_cluster/bulk.poscar"),
+        );
+
         let mut sim = Simulation::new(
             1000000000,
             None,
@@ -1077,24 +1141,17 @@ mod tests {
             300.,
             None,
             String::from("./sim/"),
-            pairlist_file,
-            n_pairlist_file,
-            nn_pair_no_int_file,
-            nnn_pair_no_int_file,
-            // nn_pairlist_file,
-            // nnn_pairlist_file,
-            atom_sites,
             false,
             false,
-            String::from("../input_cluster/bulk.poscar"),
             0_usize,
             vec![3, 4],
             energy,
+            Arc::new(gridstructure),
         );
         let (from, to, to2) = 'bar: {
             for (from, to) in &sim.possible_moves.moves {
-                for x in sim.nn[to] {
-                    if sim.nn[from].contains(&x) && sim.occ[x as usize] == 0 {
+                for x in sim.gridstructure.nn[to] {
+                    if sim.gridstructure.nn[from].contains(&x) && sim.occ[x as usize] == 0 {
                         break 'bar (*from, *to, x);
                     }
                 }
@@ -1104,22 +1161,22 @@ mod tests {
         println!("{},{},{}", from, to, to2);
         // let (from, to) = sim.possible_moves.moves[1];
         let mut effected_gcn = Vec::new();
-        for o in sim.nn[&from] {
-            for x in sim.nn[&o] {
+        for o in sim.gridstructure.nn[&from] {
+            for x in sim.gridstructure.nn[&o] {
                 if !effected_gcn.contains(&x) && sim.cn_metal[x as usize] != 0 {
                     effected_gcn.push(x)
                 }
             }
         }
-        for o in sim.nn[&to] {
-            for x in sim.nn[&o] {
+        for o in sim.gridstructure.nn[&to] {
+            for x in sim.gridstructure.nn[&o] {
                 if !effected_gcn.contains(&x) && sim.cn_metal[x as usize] != 0 {
                     effected_gcn.push(x)
                 }
             }
         }
-        for o in sim.nn[&to2] {
-            for x in sim.nn[&o] {
+        for o in sim.gridstructure.nn[&to2] {
+            for x in sim.gridstructure.nn[&o] {
                 if !effected_gcn.contains(&x) && sim.cn_metal[x as usize] != 0 {
                     effected_gcn.push(x)
                 }
@@ -1136,7 +1193,7 @@ mod tests {
 
         println!(
             "nn_from: {:?} nn_to: {:?} nn_to2: {:?}",
-            sim.nn[&from], sim.nn[&to], sim.nn[&to2]
+            sim.gridstructure.nn[&from], sim.gridstructure.nn[&to], sim.gridstructure.nn[&to2]
         );
         // println!("gcn before: {:?}", sim.gcn_metal);
         assert!(sim.occ[to2 as usize] == 0, "{}", sim.occ[to2 as usize]);
@@ -1169,11 +1226,11 @@ mod tests {
         sim.perform_move(to2, from, 0, false);
         // println!("gcn after: {:?}", sim.gcn_metal);
         let (from_change, to_change, intercet, is_reverse) =
-            no_int_nnn_from_move(from, to, &sim.nnn_pair_no_intersec);
+            no_int_nnn_from_move(from, to, &sim.gridstructure.nnn_pair_no_intersec);
         let (from_change2, to_change2, intercet2, _) =
-            no_int_nnn_from_move(to, to2, &sim.nnn_pair_no_intersec);
+            no_int_nnn_from_move(to, to2, &sim.gridstructure.nnn_pair_no_intersec);
         let (from_change3, to_change3, intercet3, _) =
-            no_int_nnn_from_move(to2, from, &sim.nnn_pair_no_intersec);
+            no_int_nnn_from_move(to2, from, &sim.gridstructure.nnn_pair_no_intersec);
         println!("from: {}, to: {}, to2: {}\n", from, to, to2);
         println!(
             "from_change  {:?} to_change {:?} \n",

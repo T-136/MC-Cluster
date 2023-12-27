@@ -1,9 +1,11 @@
 use clap::ArgGroup;
 use clap::Parser;
 use mc::energy::EnergyInput;
+use mc::GridStructure;
 use mc::Simulation;
 use std::fs;
 use std::panic;
+use std::sync::Arc;
 use std::thread;
 
 fn fmt_scient(num: &str) -> u64 {
@@ -213,21 +215,32 @@ fn main() {
 
     println!("energy: {:?}", energy);
     println!("{:?}", repetition);
+    // let pairlist_file = pairlist_file.clone();
+    // let n_pairlist_file = n_pairlist_file.clone();
+    // let nn_pair_no_int_file = nn_pair_no_int_file.clone();
+    // let nnn_pair_no_int_file = nnn_pair_no_int_file.clone();
+    // // let nn_pairlist_file = nn_pairlist_file.clone();
+    // // let nnn_pairlist_file = nnn_pairlist_file.clone();
+    // let atom_sites = atom_sites.clone();
+    // let bulk_file_name = bulk_file_name.clone();
 
     let mut handle_vec = Vec::new();
+    let gridstructure = Arc::new(GridStructure::new(
+        pairlist_file,
+        n_pairlist_file,
+        nn_pair_no_int_file,
+        nnn_pair_no_int_file,
+        atom_sites,
+        bulk_file_name,
+    ));
+
     for rep in repetition[0]..repetition[1] {
         let input_file = input_file.clone();
         let save_folder = save_folder.clone();
-        let pairlist_file = pairlist_file.clone();
-        let n_pairlist_file = n_pairlist_file.clone();
-        let nn_pair_no_int_file = nn_pair_no_int_file.clone();
-        let nnn_pair_no_int_file = nnn_pair_no_int_file.clone();
-        // let nn_pairlist_file = nn_pairlist_file.clone();
-        // let nnn_pairlist_file = nnn_pairlist_file.clone();
-        let atom_sites = atom_sites.clone();
-        let bulk_file_name = bulk_file_name.clone();
         let optimization_cut_off_fraction = optimization_cut_off_fraction.clone();
         let energy = energy.clone();
+        let gridstructure_arc = Arc::clone(&gridstructure);
+
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
                 niter,
@@ -236,19 +249,12 @@ fn main() {
                 temperature,
                 start_temperature,
                 save_folder,
-                pairlist_file,
-                n_pairlist_file,
-                nn_pair_no_int_file,
-                nnn_pair_no_int_file,
-                // nn_pairlist_file,
-                // nnn_pairlist_file,
-                atom_sites,
                 write_snap_shots,
                 heat_map,
-                bulk_file_name,
                 rep,
                 optimization_cut_off_fraction,
                 energy,
+                gridstructure_arc,
             );
             let exp = sim.run(unique_levels);
             sim.write_exp_file(&exp);
