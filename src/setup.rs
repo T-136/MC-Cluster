@@ -39,13 +39,13 @@ pub fn create_input_cluster(
         "{:?}, {:?}, {:?}",
         center_of_mass, iclose, xsites_positions[iclose as usize]
     );
+    println!("nsites: {}", nsites);
+    assert_eq!(xsites_positions.len(), nsites as usize);
     let mut occ: Vec<u8> = Vec::with_capacity(xsites_positions.len());
     let mut onlyocc: HashSet<u32, FnvBuildHasher> =
         fnv::FnvHashSet::with_capacity_and_hasher(*number_of_atoms as usize, Default::default());
 
-    for _ in 0..nsites {
-        occ.push(0);
-    }
+    occ = vec![0; nsites as usize];
 
     // occ.entry(&iclose).and_modify(1) = 1;
     onlyocc.insert(iclose);

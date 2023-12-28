@@ -35,7 +35,7 @@ const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [6, 6, 6];
+const GRID_SIZE: [u32; 3] = [9, 9, 9];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -72,9 +72,9 @@ pub struct GridStructure {
     nnn_pair_no_intersec: HashMap<
         u64,
         (
-            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-            HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+            Vec<Vec<u32>>,
+            Vec<Vec<u32>>,
+            Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
         ),
         fnv::FnvBuildHasher,
     >,
@@ -446,6 +446,7 @@ impl Simulation {
                         move_to,
                         &self.gridstructure.nnn_pair_no_intersec,
                     );
+
                     let (from_change_nn, to_change_nn) = no_int_nn_from_move(
                         move_from,
                         move_to,
@@ -462,12 +463,17 @@ impl Simulation {
                         energy_gcn,
                         from_change
                             .iter()
-                            .filter(|(atom, _)| self.occ[**atom as usize] != 0)
-                            .map(|(atom, neighbors)| {
-                                let old_gcn = self.gcn_metal[*atom as usize];
-                                let mut new_gcn = self.gcn_metal[*atom as usize];
-                                neighbors
+                            .filter(|atom_and_neighbors| {
+                                self.occ[*atom_and_neighbors.first().unwrap() as usize] != 0
+                            })
+                            .map(|atom_and_neighbors| {
+                                let old_gcn =
+                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
+                                let mut new_gcn =
+                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
+                                atom_and_neighbors
                                     .iter()
+                                    .skip(1)
                                     .filter(|x| {
                                         self.occ[**x as usize] != 0
                                             || **x == move_to
@@ -484,12 +490,17 @@ impl Simulation {
                             }),
                         to_change
                             .iter()
-                            .filter(|(atom, _)| self.occ[**atom as usize] != 0)
-                            .map(|(atom, neighbors)| {
-                                let old_gcn = self.gcn_metal[*atom as usize];
-                                let mut new_gcn = self.gcn_metal[*atom as usize];
-                                neighbors
+                            .filter(|atom_and_neighbors| {
+                                self.occ[*atom_and_neighbors.first().unwrap() as usize] != 0
+                            })
+                            .map(|atom_and_neighbors| {
+                                let old_gcn =
+                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
+                                let mut new_gcn =
+                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
+                                atom_and_neighbors
                                     .iter()
+                                    .skip(1)
                                     .filter(|x| {
                                         self.occ[**x as usize] != 0
                                             || **x == move_to
@@ -506,32 +517,56 @@ impl Simulation {
                             }),
                         intersect
                             .iter()
-                            .filter(|(atom, _)| self.occ[**atom as usize] != 0)
-                            .map(|(atom, neighbors)| {
-                                let old_gcn = self.gcn_metal[*atom as usize];
-                                let mut new_gcn = self.gcn_metal[*atom as usize];
-                                neighbors.iter().enumerate().for_each(|(i, x1)| {
-                                    x1.iter()
-                                        .filter(|x| {
-                                            self.occ[**x as usize] != 0
-                                                || **x == move_to
-                                                || **x == move_from
-                                        })
-                                        .for_each(|x| {
-                                            if i == 0 && !is_reverse || i == 1 && is_reverse {
-                                                new_gcn -= 1
-                                            } else if i == 1 && !is_reverse || i == 0 && is_reverse
-                                            {
-                                                new_gcn += 1
-                                            } else {
-                                                if x == &move_to {
-                                                    new_gcn += self.cn_metal[*x as usize] - 1
-                                                } else if x == &move_from {
-                                                    new_gcn -= self.cn_metal[*x as usize]
-                                                }
-                                            }
-                                        })
-                                });
+                            .filter(|atom_and_neighbors| {
+                                self.occ[atom_and_neighbors.0 as usize] != 0
+                            })
+                            .map(|atom_and_neighbors| {
+                                let old_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
+                                let mut new_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
+                                let (atom, first_neighbors, second_neighbors, to_from_atoms) =
+                                    atom_and_neighbors;
+                                first_neighbors
+                                    .iter()
+                                    .filter(|atom| {
+                                        self.occ[**atom as usize] != 0
+                                            || **atom == move_to
+                                            || **atom == move_from
+                                    })
+                                    .for_each(|_| {
+                                        if !is_reverse {
+                                            new_gcn -= 1
+                                        } else {
+                                            new_gcn += 1
+                                        }
+                                    });
+                                second_neighbors
+                                    .iter()
+                                    .filter(|atom| {
+                                        self.occ[**atom as usize] != 0
+                                            || **atom == move_to
+                                            || **atom == move_from
+                                    })
+                                    .for_each(|x| {
+                                        if is_reverse {
+                                            new_gcn -= 1
+                                        } else if !is_reverse {
+                                            new_gcn += 1
+                                        }
+                                    });
+                                to_from_atoms
+                                    .iter()
+                                    .filter(|atom| {
+                                        self.occ[**atom as usize] != 0
+                                            || **atom == move_to
+                                            || **atom == move_from
+                                    })
+                                    .for_each(|x| {
+                                        if x == &move_to {
+                                            new_gcn += self.cn_metal[*x as usize] - 1
+                                        } else if x == &move_from {
+                                            new_gcn -= self.cn_metal[*x as usize]
+                                        }
+                                    });
                                 (old_gcn, new_gcn)
                             }),
                         self.gcn_metal[move_from as usize],
@@ -841,64 +876,69 @@ impl Simulation {
                     }
                 }
                 self.gcn_metal[move_to as usize] -= self.cn_metal[move_from as usize] - 1;
-                for (atom, neighbors) in to_change {
-                    for n in neighbors {
+                for atom_and_neighbors in to_change {
+                    for n in atom_and_neighbors.iter().skip(1) {
                         if n == &move_to {
-                            self.gcn_metal[*atom as usize] += self.cn_metal[*n as usize];
+                            self.gcn_metal[atom_and_neighbors[0] as usize] +=
+                                self.cn_metal[*n as usize];
                             continue;
                         }
                         #[cfg(debug_assertions)]
                         if n == &move_from {
-                            panic!("found move from {:?}, move_from {}", neighbors, move_from);
+                            panic!(
+                                "found move from {:?}, move_from {}",
+                                atom_and_neighbors, move_from
+                            );
                         }
                         if self.occ[*n as usize] != 0 {
-                            self.gcn_metal[*atom as usize] += 1;
+                            self.gcn_metal[atom_and_neighbors[0] as usize] += 1;
                         }
                     }
                 }
-                for (atom, neighbors) in from_change {
+                for atom_and_neighbors in from_change {
                     // println!("gcn bef{:?}", self.gcn_metal[*atom as usize]);
-                    for n in neighbors {
+                    for n in atom_and_neighbors.iter().skip(1) {
                         #[cfg(debug_assertions)]
                         if n == &move_to {
                             panic!("found move to");
                         }
                         if n == &move_from {
                             // println!("cn move from {:?}", self.cn_metal[*n as usize] - 1);
-                            self.gcn_metal[*atom as usize] -= self.cn_metal[*n as usize] - 1;
+                            self.gcn_metal[atom_and_neighbors[0] as usize] -=
+                                self.cn_metal[*n as usize] - 1;
                             continue;
                         }
                         if self.occ[*n as usize] != 0 {
                             // println!("-1",);
-                            self.gcn_metal[*atom as usize] -= 1;
+                            self.gcn_metal[atom_and_neighbors[0] as usize] -= 1;
                         }
                     }
                 }
-                for (atom, neighbors) in intersect {
+                for (atom, first_neighbors, second_neighbors, to_from_atoms) in intersect {
                     if !is_reverse {
-                        for n in &neighbors[0] {
+                        for n in first_neighbors {
                             if self.occ[*n as usize] != 0 {
                                 self.gcn_metal[*atom as usize] -= 1;
                             }
                         }
-                        for n in &neighbors[1] {
+                        for n in second_neighbors {
                             if self.occ[*n as usize] != 0 {
                                 self.gcn_metal[*atom as usize] += 1;
                             }
                         }
                     } else if is_reverse {
-                        for n in &neighbors[1] {
+                        for n in second_neighbors {
                             if self.occ[*n as usize] != 0 {
                                 self.gcn_metal[*atom as usize] -= 1;
                             }
                         }
-                        for n in &neighbors[0] {
+                        for n in first_neighbors {
                             if self.occ[*n as usize] != 0 {
                                 self.gcn_metal[*atom as usize] += 1;
                             }
                         }
                     }
-                    for n in &neighbors[2] {
+                    for n in to_from_atoms {
                         if n == &move_to {
                             self.gcn_metal[*atom as usize] += self.cn_metal[*n as usize];
                             continue;
@@ -997,16 +1037,16 @@ fn no_int_nnn_from_move(
     nnn_pair_no_intersec: &HashMap<
         u64,
         (
-            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-            HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+            Vec<Vec<u32>>,
+            Vec<Vec<u32>>,
+            Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
         ),
         fnv::FnvBuildHasher,
     >,
 ) -> (
-    &HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-    &HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-    &HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+    &Vec<Vec<u32>>,
+    &Vec<Vec<u32>>,
+    &Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
     bool,
 ) {
     let (min, max, inter) = &nnn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
@@ -1081,6 +1121,16 @@ pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> 
 
     Ok(())
 }
+
+// impl<T> [T] {
+//     fn split_nnn_iter<I>(&self) -> (u32, I)
+//     where
+//         I: Iterator<Item = u32>,
+//     {
+//         let first = nnn_list_with_first.next().unwrap();
+//         (first, nnn_list_with_first)
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -1232,11 +1282,11 @@ mod tests {
         let (from_change3, to_change3, intercet3, _) =
             no_int_nnn_from_move(to2, from, &sim.gridstructure.nnn_pair_no_intersec);
         println!("from: {}, to: {}, to2: {}\n", from, to, to2);
-        println!(
-            "from_change  {:?} to_change {:?} \n",
-            from_change.keys().collect::<Vec<&u32>>(),
-            to_change.keys().collect::<Vec<&u32>>()
-        );
+        // println!(
+        //     "from_change  {:?} to_change {:?} \n",
+        //     from_change.keys().collect::<Vec<&u32>>(),
+        //     to_change.keys().collect::<Vec<&u32>>()
+        // );
         println!(
             "from: {:?},\n to: {:?},\n inter: {:?} \n",
             from_change, to_change, intercet

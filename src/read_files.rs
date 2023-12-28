@@ -97,9 +97,9 @@ pub fn read_nnn_pair_no_intersec(
 ) -> HashMap<
     u64,
     (
-        HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-        HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-        HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+        Vec<Vec<u32>>,
+        Vec<Vec<u32>>,
+        Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
     ),
     fnv::FnvBuildHasher,
 > {
@@ -113,21 +113,20 @@ pub fn read_nnn_pair_no_intersec(
         HashMap<
             u32,
             (
-                HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-                HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-                HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+                Vec<Vec<u32>>,
+                Vec<Vec<u32>>,
+                Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
             ),
-            FnvBuildHasher,
+            fnv::FnvBuildHasher,
         >,
-        FnvBuildHasher,
     > = serde_json::from_reader(reader).unwrap();
 
     let mut nnn_pair: HashMap<
         u64,
         (
-            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-            HashMap<u32, Vec<u32>, fnv::FnvBuildHasher>,
-            HashMap<u32, [Vec<u32>; 3], fnv::FnvBuildHasher>,
+            Vec<Vec<u32>>,
+            Vec<Vec<u32>>,
+            Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
         ),
         fnv::FnvBuildHasher,
     > = FnvHashMap::with_capacity_and_hasher(5400, Default::default());
