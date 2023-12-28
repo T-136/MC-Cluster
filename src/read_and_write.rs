@@ -1,12 +1,34 @@
-use chemfiles::Frame;
-use chemfiles::Trajectory;
+use chemfiles::{Atom, Frame, Trajectory, UnitCell};
 use fnv::FnvBuildHasher;
 use fnv::FnvHashMap;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fs;
 use std::io::{self, BufRead};
 use time_graph::instrument;
 use vasp_poscar::Poscar;
+
+pub fn write_occ_as_xyz(
+    trajectory: &mut Trajectory,
+    onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
+    xsites_positions: &Vec<[f64; 3]>,
+    unit_cell: &[f64; 3],
+) {
+    let mut xyz: Vec<[f64; 3]> = Vec::new();
+    for (j, ii) in onlyocc.iter().enumerate() {
+        xyz.insert(j, xsites_positions[*ii as usize]);
+    }
+    let mut frame = Frame::new();
+    frame.set_cell(&UnitCell::new(unit_cell.clone()));
+
+    for atom in xyz.into_iter() {
+        frame.add_atom(&Atom::new("Pt"), [atom[0], atom[1], atom[2]], None);
+    }
+
+    trajectory
+        .write(&frame)
+        .unwrap_or_else(|x| eprintln!("{}", x));
+}
 
 #[instrument]
 pub fn read_sample(input_file: &str) -> Vec<[f64; 3]> {
@@ -92,6 +114,7 @@ pub fn read_nnn(pairlist_file: &str) -> HashMap<u32, [u32; super::GCN], FnvBuild
     }
     nnn
 }
+
 pub fn read_nnn_pair_no_intersec(
     nnn_pairlist_file: &str,
 ) -> HashMap<

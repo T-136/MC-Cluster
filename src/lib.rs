@@ -20,10 +20,9 @@ use vasp_poscar::Poscar;
 // mod energy_change;
 pub mod energy;
 mod listdict;
-mod read_files;
+mod read_and_write;
 mod setup;
 mod sim;
-mod write_save;
 
 pub use sim::Results;
 
@@ -50,7 +49,7 @@ pub struct Simulation {
     possible_moves: listdict::ListDict,
     // energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
-    cn_dict: [u32; GCN + 1],
+    cn_dict: [u32; CN + 1],
     save_folder: String,
     start_temperature: Option<f64>,
     temperature: f64,
@@ -92,10 +91,10 @@ impl GridStructure {
         bulk_file_name: String,
     ) -> GridStructure {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
-        let nn = read_files::read_nn(&pairlist_file);
-        let nnn = read_files::read_nnn(&n_pairlist_file);
-        let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
-        let nnn_pair_no_intersec = read_files::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
+        let nn = read_and_write::read_nn(&pairlist_file);
+        let nnn = read_and_write::read_nnn(&n_pairlist_file);
+        let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(&nn_pair_no_int_file);
+        let nnn_pair_no_intersec = read_and_write::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
             panic!(
@@ -111,7 +110,7 @@ impl GridStructure {
             unit_cell_size[2][2] * GRID_SIZE[2] as f64,
         ];
 
-        let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
+        let xsites_positions = read_and_write::read_atom_sites(&atom_sites, nsites);
 
         GridStructure {
             nn,
@@ -169,10 +168,10 @@ impl Simulation {
         //     unit_cell_size[1][1] * GRID_SIZE[1] as f64,
         //     unit_cell_size[2][2] * GRID_SIZE[2] as f64,
         // ]);
-        let mut cn_dict: [u32; GCN + 1] = [0; GCN + 1];
+        let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
         // let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
         let (occ, onlyocc, number_all_atoms) = if input_file.is_some() {
-            let xyz = read_files::read_sample(&input_file.unwrap());
+            let xyz = read_and_write::read_sample(&input_file.unwrap());
             let (occ, onlyocc) =
                 setup::occ_onlyocc_from_xyz(&xyz, nsites, &gridstructure.xsites_positions);
             let number_of_atoms: u32 = onlyocc.len() as u32;
@@ -629,7 +628,7 @@ impl Simulation {
             let mut trajectory_lowest_energy =
                 Trajectory::open(self.save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
 
-            write_save::write_occ_as_xyz(
+            read_and_write::write_occ_as_xyz(
                 &mut trajectory_lowest_energy,
                 lowest_e_onlyocc,
                 &self.gridstructure.xsites_positions,
