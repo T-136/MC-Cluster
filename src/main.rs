@@ -1,12 +1,13 @@
 use clap::ArgGroup;
 use clap::Parser;
+use core::panic;
 use mc::energy::EnergyInput;
 use mc::GridStructure;
 use mc::Simulation;
 use std::fs;
-use std::panic;
 use std::sync::Arc;
 use std::thread;
+use std::usize;
 
 fn fmt_scient(num: &str) -> u64 {
     let mut parts = num.split(['e', 'E']);
@@ -22,70 +23,27 @@ fn fmt_scient(num: &str) -> u64 {
         * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
 }
 
-fn file_or_energy(inp: &str, energy: EnergyInput) -> EnergyInput {
-    if inp.starts_with("./") {
-        let contents = fs::read_to_string(inp).expect("can't find energy file");
-
-        let mut string_iter = contents.split(',');
-
-        match energy {
-            EnergyInput::LinearCn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
-                }
-                EnergyInput::LinearCn(energy_vec)
-            }
-            EnergyInput::Cn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
-                }
-                EnergyInput::Cn(energy_vec)
-            }
-            EnergyInput::LinearGcn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
-                }
-                EnergyInput::LinearGcn(energy_vec)
-            }
-            EnergyInput::Gcn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().trim().parse::<i64>().unwrap();
-                }
-                EnergyInput::Gcn(energy_vec)
-            }
-        }
+fn collect_energy_values<const N: usize>(mut energy_vec: [i64; N], inp: String) -> [i64; N] {
+    let contents = if inp.chars().next().unwrap().is_numeric() || inp.starts_with('-') {
+        inp
     } else {
-        let mut string_iter = inp.split(',');
-        // println!("string iter {:?}", string_iter.collect());
-        println!("string iter {:?}", string_iter);
-
-        match energy {
-            EnergyInput::LinearCn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
-                }
-                EnergyInput::LinearCn(energy_vec)
-            }
-            EnergyInput::Cn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
-                }
-                EnergyInput::Cn(energy_vec)
-            }
-            EnergyInput::LinearGcn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
-                }
-                EnergyInput::LinearGcn(energy_vec)
-            }
-            EnergyInput::Gcn(mut energy_vec) => {
-                for x in energy_vec.iter_mut() {
-                    *x = string_iter.next().unwrap().parse::<i64>().unwrap()
-                }
-                EnergyInput::Gcn(energy_vec)
-            }
-        }
+        fs::read_to_string(inp).expect("can't find energy file")
+    };
+    let mut string_iter = contents.trim().split(',');
+    for x in energy_vec.iter_mut() {
+        *x = string_iter
+            .next()
+            .unwrap()
+            .trim()
+            .parse::<i64>()
+            .unwrap_or_else(|err| {
+                panic!(
+                    "iter received from input file: {:?}, err: {}",
+                    string_iter, err
+                )
+            });
     }
+    energy_vec
 }
 
 #[derive(Parser, Debug)]
@@ -202,13 +160,13 @@ fn main() {
     let repetition = args.repetition;
 
     let energy = if args.e_l_cn.is_some() {
-        file_or_energy(&args.e_l_cn.unwrap(), EnergyInput::LinearCn([0; 2]))
+        EnergyInput::LinearCn(collect_energy_values([0; 2], args.e_l_cn.unwrap()))
     } else if args.e_cn.is_some() {
-        file_or_energy(&args.e_cn.unwrap(), EnergyInput::Cn([0; 13]))
+        EnergyInput::Cn(collect_energy_values([0; 13], args.e_cn.unwrap()))
     } else if args.e_l_gcn.is_some() {
-        file_or_energy(&args.e_l_gcn.unwrap(), EnergyInput::LinearGcn([0; 2]))
+        EnergyInput::LinearGcn(collect_energy_values([0; 2], args.e_l_gcn.unwrap()))
     } else if args.e_gcn.is_some() {
-        file_or_energy(&args.e_gcn.unwrap(), EnergyInput::Gcn([0; 145]))
+        EnergyInput::Gcn(collect_energy_values([0; 145], args.e_gcn.unwrap()))
     } else {
         panic!("no energy")
     };

@@ -1121,16 +1121,6 @@ pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> 
     Ok(())
 }
 
-// impl<T> [T] {
-//     fn split_nnn_iter<I>(&self) -> (u32, I)
-//     where
-//         I: Iterator<Item = u32>,
-//     {
-//         let first = nnn_list_with_first.next().unwrap();
-//         (first, nnn_list_with_first)
-//     }
-// }
-
 #[cfg(test)]
 mod tests {
     // Note this useful idiom: importing names from outer (for mod tests) scope.
@@ -1281,11 +1271,6 @@ mod tests {
         let (from_change3, to_change3, intercet3, _) =
             no_int_nnn_from_move(to2, from, &sim.gridstructure.nnn_pair_no_intersec);
         println!("from: {}, to: {}, to2: {}\n", from, to, to2);
-        // println!(
-        //     "from_change  {:?} to_change {:?} \n",
-        //     from_change.keys().collect::<Vec<&u32>>(),
-        //     to_change.keys().collect::<Vec<&u32>>()
-        // );
         println!(
             "from: {:?},\n to: {:?},\n inter: {:?} \n",
             from_change, to_change, intercet
