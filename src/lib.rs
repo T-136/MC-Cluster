@@ -7,6 +7,7 @@ use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
+use rayon::prelude::*;
 use std::collections::hash_map::Entry;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
@@ -14,16 +15,15 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::sync::Arc;
 use std::{cmp, eprint, fs, println, usize};
-use vasp_poscar::Poscar;
 
-// mod build_pairs;
-// mod energy_change;
 pub mod energy;
+mod grid_structure;
 mod listdict;
 mod read_and_write;
 mod setup;
 mod sim;
 
+pub use grid_structure::GridStructure;
 pub use sim::Results;
 
 const CN: usize = 12;
@@ -64,75 +64,6 @@ pub struct Simulation {
     gridstructure: Arc<GridStructure>,
 }
 
-pub struct GridStructure {
-    nn: HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
-    nnn: HashMap<u32, [u32; GCN], fnv::FnvBuildHasher>,
-    nn_pair_no_intersec: HashMap<u64, [[u32; NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
-    nnn_pair_no_intersec: HashMap<
-        u64,
-        (
-            Vec<Vec<u32>>,
-            Vec<Vec<u32>>,
-            Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
-        ),
-        fnv::FnvBuildHasher,
-    >,
-    xsites_positions: Vec<[f64; 3]>,
-    unit_cell: [f64; 3],
-}
-
-impl GridStructure {
-    pub fn new(
-        pairlist_file: String,
-        n_pairlist_file: String,
-        nn_pair_no_int_file: String,
-        nnn_pair_no_int_file: String,
-        atom_sites: String,
-        bulk_file_name: String,
-    ) -> GridStructure {
-        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
-        let nn = read_and_write::read_nn(&pairlist_file);
-        let nnn = read_and_write::read_nnn(&n_pairlist_file);
-        let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(&nn_pair_no_int_file);
-        let nnn_pair_no_intersec = read_and_write::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
-
-        let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
-            panic!(
-                "Could not parse '{:?}': {}",
-                stringify!(bulk_file_name),
-                err
-            )
-        });
-        let unit_cell_size = bulk.unscaled_lattice_vectors();
-        let unit_cell = [
-            unit_cell_size[0][0] * GRID_SIZE[0] as f64,
-            unit_cell_size[1][1] * GRID_SIZE[1] as f64,
-            unit_cell_size[2][2] * GRID_SIZE[2] as f64,
-        ];
-
-        let xsites_positions = read_and_write::read_atom_sites(&atom_sites, nsites);
-
-        GridStructure {
-            nn,
-            nnn,
-            nn_pair_no_intersec,
-            nnn_pair_no_intersec,
-            xsites_positions,
-            unit_cell,
-        }
-    }
-}
-
-// #[derive(Clone)]
-pub struct Settings {
-    optimization_cut_off_fraction: Vec<u64>,
-    unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
-    heat_map: Option<Vec<u64>>,
-    snap_shot_sections: Option<Vec<Vec<u8>>>,
-    heat_map_sections: Vec<Vec<u64>>,
-    energy: EnergyInput,
-}
-
 impl Simulation {
     pub fn new(
         niter: u64,
@@ -150,26 +81,7 @@ impl Simulation {
         gridstructure: Arc<GridStructure>,
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
-        // let nn = read_files::read_nn(&pairlist_file);
-        // let nnn = read_files::read_nnn(&n_pairlist_file);
-        // let nn_pair_no_intersec = read_files::read_nn_pair_no_intersec(&nn_pair_no_int_file);
-        // let nnn_pair_no_intersec = read_files::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
-        //
-        // let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
-        //     panic!(
-        //         "Could not parse '{:?}': {}",
-        //         stringify!(bulk_file_name),
-        //         err
-        //     )
-        // });
-        // let unit_cell_size = bulk.unscaled_lattice_vectors();
-        // let unit_cell = UnitCell::new([
-        //     unit_cell_size[0][0] * GRID_SIZE[0] as f64,
-        //     unit_cell_size[1][1] * GRID_SIZE[1] as f64,
-        //     unit_cell_size[2][2] * GRID_SIZE[2] as f64,
-        // ]);
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
-        // let xsites_positions = read_files::read_atom_sites(&atom_sites, nsites);
         let (occ, onlyocc, number_all_atoms) = if input_file.is_some() {
             let xyz = read_and_write::read_sample(&input_file.unwrap());
             let (occ, onlyocc) =
@@ -305,7 +217,7 @@ impl Simulation {
             heat_map,
             heat_map_sections,
             energy,
-            gridstructure: gridstructure,
+            gridstructure,
         }
     }
 
