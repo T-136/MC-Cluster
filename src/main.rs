@@ -47,18 +47,30 @@ fn collect_energy_values<const N: usize>(mut energy_vec: [i64; N], inp: String) 
 }
 
 #[derive(Parser, Debug)]
+#[clap(group(
+        ArgGroup::new("startstructure")
+            .required(true)
+            .args(&["start_cluster", "atoms_input"]),
+    ))]
+struct StartStructure {
+    #[arg(short, long)]
+    start_cluster: Option<String>,
+
+    #[arg(short, long, value_delimiter = ',')]
+    atoms_input: Option<Vec<u32>>,
+}
+
+#[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 #[clap(group(
-        ArgGroup::new("my-group")
+        ArgGroup::new("energy")
+            .multiple(true)
             .required(true)
             .args(&["e_l_cn", "e_cn", "e_l_gcn", "e_gcn"]),
     ))]
 struct Args {
-    #[arg(short, long)]
-    start_cluster: Option<String>,
-
-    #[arg(short, long)]
-    atoms_input: Option<u32>,
+    #[clap(flatten)]
+    start_structure: StartStructure,
 
     /// folder to store results
     #[arg(short, long, default_value_t = String::from("./sim/"))]
@@ -120,6 +132,16 @@ fn file_paths(grid_folder: String) -> (String, String, String, String, String, S
     )
 }
 
+fn unpack_atoms_input(atoms: Vec<u32>) -> (Option<u32>, Option<Vec<u32>>) {
+    if atoms.len() == 1 {
+        return (Some(atoms[0]), None);
+    } else if atoms.len() == 4 {
+        return (Some(atoms[0]), Some(vec![atoms[1], atoms[2], atoms[3]]));
+    } else {
+        panic!("wrong atoms input, user one of the two input options: \n number of atoms: '-a x' \n or number of atoms with miller indices: '-a x h k l' ")
+    }
+}
+
 fn main() {
     // enable_data_collection(true);
     println!("determined next-nearest neighbor list");
@@ -128,13 +150,20 @@ fn main() {
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
     let start_temperature: Option<f64> = args.begin_temperature;
-    let atoms_input = args.atoms_input;
     let unique_levels = args.unique_levels;
     if !std::path::Path::new(&save_folder).exists() {
         fs::create_dir_all(&save_folder).unwrap();
     }
 
-    let input_file: Option<String> = args.start_cluster;
+    // let (atoms_input, sup) =
+    let (atoms_input, support_indices) = if let Some(atoms_input) = args.start_structure.atoms_input
+    {
+        unpack_atoms_input(atoms_input)
+    } else {
+        (None, None)
+    };
+
+    let input_file: Option<String> = args.start_structure.start_cluster;
 
     #[allow(unused_variables)]
     let (
@@ -156,7 +185,6 @@ fn main() {
     }
     let bulk_file_name: String = args.core_file;
     let optimization_cut_off_fraction: Vec<u64> = args.optimization_cut_off_fraction;
-
     let repetition = args.repetition;
 
     let energy = if args.e_l_cn.is_some() {
@@ -173,24 +201,17 @@ fn main() {
 
     println!("energy: {:?}", energy);
     println!("{:?}", repetition);
-    // let pairlist_file = pairlist_file.clone();
-    // let n_pairlist_file = n_pairlist_file.clone();
-    // let nn_pair_no_int_file = nn_pair_no_int_file.clone();
-    // let nnn_pair_no_int_file = nnn_pair_no_int_file.clone();
-    // // let nn_pairlist_file = nn_pairlist_file.clone();
-    // // let nnn_pairlist_file = nnn_pairlist_file.clone();
-    // let atom_sites = atom_sites.clone();
-    // let bulk_file_name = bulk_file_name.clone();
 
     let mut handle_vec = Vec::new();
-    let gridstructure = Arc::new(GridStructure::new(
+    let gridstructure = GridStructure::new(
         pairlist_file,
         n_pairlist_file,
         nn_pair_no_int_file,
         nnn_pair_no_int_file,
         atom_sites,
         bulk_file_name,
-    ));
+    );
+    let gridstructure = Arc::new(gridstructure);
 
     for rep in repetition[0]..repetition[1] {
         let input_file = input_file.clone();
@@ -198,6 +219,7 @@ fn main() {
         let optimization_cut_off_fraction = optimization_cut_off_fraction.clone();
         let energy = energy.clone();
         let gridstructure_arc = Arc::clone(&gridstructure);
+        let support_indices = support_indices.clone();
 
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
@@ -212,6 +234,7 @@ fn main() {
                 rep,
                 optimization_cut_off_fraction,
                 energy,
+                support_indices,
                 gridstructure_arc,
             );
             let exp = sim.run(unique_levels);

@@ -27,7 +27,8 @@ pub use grid_structure::GridStructure;
 pub use sim::Results;
 
 const CN: usize = 12;
-const GCN: usize = 54;
+// const GCN: usize = 54;
+const GCN: usize = 145;
 const NN_PAIR_NUMBER: usize = 20;
 const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
 const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
@@ -74,10 +75,10 @@ impl Simulation {
         save_folder_name: String,
         write_snap_shots: bool,
         is_heat_map: bool,
-        // bulk_file_name: String,
         repetition: usize,
         optimization_cut_off_fraction: Vec<u64>,
         energy: EnergyInput,
+        support_indices: Option<Vec<u32>>,
         gridstructure: Arc<GridStructure>,
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
@@ -90,11 +91,12 @@ impl Simulation {
             (occ, onlyocc, number_of_atoms)
         } else if atoms_input.is_some() {
             let number_of_atom = atoms_input.unwrap();
-            let (occ, onlyocc) = setup::create_input_cluster(
+            let (occ, onlyocc, nn_support) = setup::create_input_cluster(
                 &atoms_input.unwrap(),
                 &gridstructure.xsites_positions,
                 &gridstructure.nn,
                 nsites,
+                support_indices,
             );
             (occ, onlyocc, number_of_atom)
         } else {
@@ -125,7 +127,6 @@ impl Simulation {
             }
             gcn_metal.push(gcn);
         }
-        println!("{:?}", gcn_metal);
 
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
@@ -265,7 +266,7 @@ impl Simulation {
                 Default::default(),
             );
         if self.niter == 0 {
-            if let Some(x) = self.save_lowest_energy(&0, &mut lowest_energy_struct) {
+            if let Some(x) = self.opt_save_lowest_energy(&0, &mut lowest_energy_struct) {
                 lowest_e_onlyocc = x;
             };
         }
@@ -367,7 +368,7 @@ impl Simulation {
                     let mut cn_from = 0;
                     to_change_nn
                         .iter()
-                        .filter(|x| self.occ[**x as usize] != 0)
+                        .filter(|x| self.occ[**x as usize] == 1)
                         .for_each(|_| cn_from += 1);
 
                     energy::energy_diff_gcn(
@@ -375,7 +376,7 @@ impl Simulation {
                         from_change
                             .iter()
                             .filter(|atom_and_neighbors| {
-                                self.occ[*atom_and_neighbors.first().unwrap() as usize] != 0
+                                self.occ[*atom_and_neighbors.first().unwrap() as usize] == 1
                             })
                             .map(|atom_and_neighbors| {
                                 let old_gcn =
@@ -386,7 +387,7 @@ impl Simulation {
                                     .iter()
                                     .skip(1)
                                     .filter(|x| {
-                                        self.occ[**x as usize] != 0
+                                        self.occ[**x as usize] == 1
                                             || **x == move_to
                                             || **x == move_from
                                     })
@@ -402,7 +403,7 @@ impl Simulation {
                         to_change
                             .iter()
                             .filter(|atom_and_neighbors| {
-                                self.occ[*atom_and_neighbors.first().unwrap() as usize] != 0
+                                self.occ[*atom_and_neighbors.first().unwrap() as usize] == 1
                             })
                             .map(|atom_and_neighbors| {
                                 let old_gcn =
@@ -413,7 +414,7 @@ impl Simulation {
                                     .iter()
                                     .skip(1)
                                     .filter(|x| {
-                                        self.occ[**x as usize] != 0
+                                        self.occ[**x as usize] == 1
                                             || **x == move_to
                                             || **x == move_from
                                     })
@@ -429,7 +430,7 @@ impl Simulation {
                         intersect
                             .iter()
                             .filter(|atom_and_neighbors| {
-                                self.occ[atom_and_neighbors.0 as usize] != 0
+                                self.occ[atom_and_neighbors.0 as usize] == 1
                             })
                             .map(|atom_and_neighbors| {
                                 let old_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
@@ -439,7 +440,7 @@ impl Simulation {
                                 first_neighbors
                                     .iter()
                                     .filter(|atom| {
-                                        self.occ[**atom as usize] != 0
+                                        self.occ[**atom as usize] == 1
                                             || **atom == move_to
                                             || **atom == move_from
                                     })
@@ -453,7 +454,7 @@ impl Simulation {
                                 second_neighbors
                                     .iter()
                                     .filter(|atom| {
-                                        self.occ[**atom as usize] != 0
+                                        self.occ[**atom as usize] == 1
                                             || **atom == move_to
                                             || **atom == move_from
                                     })
@@ -467,7 +468,7 @@ impl Simulation {
                                 to_from_atoms
                                     .iter()
                                     .filter(|atom| {
-                                        self.occ[**atom as usize] != 0
+                                        self.occ[**atom as usize] == 1
                                             || **atom == move_to
                                             || **atom == move_from
                                     })
@@ -519,7 +520,7 @@ impl Simulation {
             if iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
             {
-                if let Some(x) = self.save_lowest_energy(&iiter, &mut lowest_energy_struct) {
+                if let Some(x) = self.opt_save_lowest_energy(&iiter, &mut lowest_energy_struct) {
                     lowest_e_onlyocc = x;
                 };
             }
@@ -545,6 +546,7 @@ impl Simulation {
                 lowest_e_onlyocc,
                 &self.gridstructure.xsites_positions,
                 &self.gridstructure.unit_cell,
+                &self.occ,
             );
         }
 
@@ -644,7 +646,7 @@ impl Simulation {
         temp_energy_section_1000
     }
 
-    fn save_lowest_energy(
+    fn opt_save_lowest_energy(
         &mut self,
         iiter: &u64,
         lowest_energy_struct: &mut sim::LowestEnergy,
@@ -678,7 +680,7 @@ impl Simulation {
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
-        let heating_temp = 3000.;
+        let heating_temp = 5000.;
         if self.start_temperature.is_some() {
             if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
                 heating_temp
@@ -773,7 +775,7 @@ impl Simulation {
                     if o == move_to {
                         continue;
                     }
-                    if self.occ[o as usize] != 0 {
+                    if self.occ[o as usize] == 1 {
                         self.gcn_metal[move_from as usize] -= 1;
                     }
                 }
@@ -782,7 +784,7 @@ impl Simulation {
                     if o == move_from {
                         continue;
                     }
-                    if self.occ[o as usize] != 0 {
+                    if self.occ[o as usize] == 1 {
                         self.gcn_metal[move_to as usize] += 1;
                     }
                 }
@@ -801,7 +803,7 @@ impl Simulation {
                                 atom_and_neighbors, move_from
                             );
                         }
-                        if self.occ[*n as usize] != 0 {
+                        if self.occ[*n as usize] == 1 {
                             self.gcn_metal[atom_and_neighbors[0] as usize] += 1;
                         }
                     }
@@ -819,7 +821,7 @@ impl Simulation {
                                 self.cn_metal[*n as usize] - 1;
                             continue;
                         }
-                        if self.occ[*n as usize] != 0 {
+                        if self.occ[*n as usize] == 1 {
                             // println!("-1",);
                             self.gcn_metal[atom_and_neighbors[0] as usize] -= 1;
                         }
@@ -828,23 +830,23 @@ impl Simulation {
                 for (atom, first_neighbors, second_neighbors, to_from_atoms) in intersect {
                     if !is_reverse {
                         for n in first_neighbors {
-                            if self.occ[*n as usize] != 0 {
+                            if self.occ[*n as usize] == 1 {
                                 self.gcn_metal[*atom as usize] -= 1;
                             }
                         }
                         for n in second_neighbors {
-                            if self.occ[*n as usize] != 0 {
+                            if self.occ[*n as usize] == 1 {
                                 self.gcn_metal[*atom as usize] += 1;
                             }
                         }
                     } else if is_reverse {
                         for n in second_neighbors {
-                            if self.occ[*n as usize] != 0 {
+                            if self.occ[*n as usize] == 1 {
                                 self.gcn_metal[*atom as usize] -= 1;
                             }
                         }
                         for n in first_neighbors {
-                            if self.occ[*n as usize] != 0 {
+                            if self.occ[*n as usize] == 1 {
                                 self.gcn_metal[*atom as usize] += 1;
                             }
                         }
@@ -1097,6 +1099,7 @@ mod tests {
             0_usize,
             vec![3, 4],
             energy,
+            None,
             Arc::new(gridstructure),
         );
         let (from, to, to2) = 'bar: {

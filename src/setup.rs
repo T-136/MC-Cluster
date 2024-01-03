@@ -1,12 +1,65 @@
+use core::panic;
 use fnv::FnvBuildHasher;
 use std::collections::{HashMap, HashSet};
+
+fn create_support(
+    xsites_positions: &Vec<[f64; 3]>,
+    support_indices: Vec<u32>,
+    occ: &mut Vec<u8>,
+    nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
+    iclose: u32,
+) -> Vec<u32> {
+    let center_of_mass: &[f64; 3] = &xsites_positions[iclose as usize];
+    let mut nn_support = vec![0_u32; xsites_positions.len()];
+    let mut support = Vec::new();
+    let refpos = xsites_positions[0];
+    for (i, xyz) in xsites_positions.iter().enumerate() {
+        let mut norm = 0_f64;
+        for (i2, x) in xyz.iter().enumerate() {
+            norm += ((*x - center_of_mass[i2]) * support_indices[i2] as f64);
+        }
+        if norm.abs() < 1e-7 {
+            occ[i] = 2;
+            support.push(i as u32)
+        };
+    }
+    let mut second_layer_fixpoint = 0;
+    for neighbor in nn[&iclose] {
+        if occ[neighbor as usize] == 0 {
+            second_layer_fixpoint = neighbor;
+        }
+    }
+    for (i, xyz) in xsites_positions.iter().enumerate() {
+        let mut norm = 0_f64;
+        for (i2, x) in xyz.iter().enumerate() {
+            norm += ((*x - xsites_positions[second_layer_fixpoint as usize][i2])
+                * support_indices[i2] as f64);
+        }
+        if norm.abs() < 1e-7 {
+            occ[i] = 2;
+            support.push(i as u32)
+        };
+    }
+    for sup in support.iter() {
+        for neighbor in nn[sup] {
+            if !nn_support.contains(&neighbor) && occ[neighbor as usize] != 2 {
+                nn_support[neighbor as usize] = 1;
+            }
+        }
+    }
+    println!("{:?}", nn_support);
+    println!("{:?}", occ);
+    // panic!("fds");
+    nn_support
+}
 
 pub fn create_input_cluster(
     number_of_atoms: &u32,
     xsites_positions: &Vec<[f64; 3]>,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     nsites: u32,
-) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>) {
+    support_indices: Option<Vec<u32>>,
+) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>, Option<Vec<u32>>) {
     let center_of_mass: [f64; 3] = {
         let mut d: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         for coord in xsites_positions {
@@ -47,8 +100,20 @@ pub fn create_input_cluster(
 
     occ = vec![0; nsites as usize];
 
+    let nn_support =
+        support_indices.map(|sup| create_support(xsites_positions, sup, &mut occ, nn, iclose));
+
     // occ.entry(&iclose).and_modify(1) = 1;
-    onlyocc.insert(iclose);
+    if occ[iclose as usize] == 0 {
+        onlyocc.insert(iclose);
+    } else {
+        for neighbor in nn[&iclose] {
+            if occ[neighbor as usize] == 0 {
+                onlyocc.insert(neighbor);
+                break;
+            }
+        }
+    }
 
     let mut ks = 1;
     assert!(number_of_atoms < &nsites);
@@ -57,7 +122,10 @@ pub fn create_input_cluster(
         let mut onlyocc_temp_storag: HashSet<u32> = HashSet::new();
         for site in onlyocc.iter() {
             for j in &nn[site] {
-                if !onlyocc_temp_storag.contains(&j) && !onlyocc.contains(&j) {
+                if !onlyocc_temp_storag.contains(&j)
+                    && !onlyocc.contains(&j)
+                    && occ[*j as usize] == 0
+                {
                     onlyocc_temp_storag.insert(*j);
                     // onlyocc.insert(j);
                     ks += 1;
@@ -82,29 +150,7 @@ pub fn create_input_cluster(
         occ[*site as usize] = 1_u8;
     }
 
-    (occ, onlyocc)
-    // build_onlyocc = [iclose]
-    // loc_occ =[]
-    // number_atoms = int(number_atoms)
-    // ks = len(build_onlyocc)
-    // while True:
-    //     loc_occ = copy.deepcopy(build_onlyocc)
-    //     for site in loc_occ:
-    //         for j in nn[site]:
-    //             if j not in build_onlyocc:
-    //                 build_onlyocc.append(j)
-    //                 ks += 1
-    //                 if ks == number_atoms:
-    //                     break
-    //         if ks == number_atoms:
-    //             break
-    //     # build_onlyocc = loc_occ.copy()
-    //     if ks == number_atoms:
-    //         break
-    // todel = [i for i in sites if i not in build_onlyocc]
-    // base_traj = atoms.copy()
-    // del base_traj[todel]
-    // base_traj.write('./../input_cluster/test.poscar')
+    (occ, onlyocc, nn_support)
 }
 
 pub fn occ_onlyocc_from_xyz(
@@ -130,12 +176,12 @@ pub fn occ_onlyocc_from_xyz(
             }
         }
     }
-    for (i, o) in occ.iter().enumerate() {
-        if *o == 1_u8 {
-            if !onlyocc.contains(&(i as u32)) {
-                println!("occ: {}", i);
-            }
-        }
-    }
+    // for (i, o) in occ.iter().enumerate() {
+    //     if *o == 1_u8 {
+    //         if !onlyocc.contains(&(i as u32)) {
+    //             println!("occ: {}", i);
+    //         }
+    //     }
+    // }
     (occ, onlyocc)
 }

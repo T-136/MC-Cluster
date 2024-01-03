@@ -42,6 +42,7 @@ impl ListDict {
             _ => return,
         }
     }
+
     pub fn remove_item(&mut self, move_from: u32, move_to: u32) {
         if let Some(position) = self
             .move_to_position
