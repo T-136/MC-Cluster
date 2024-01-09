@@ -48,7 +48,6 @@ pub struct Simulation {
     cn_metal: Vec<usize>,
     gcn_metal: Vec<usize>,
     possible_moves: listdict::ListDict,
-    // energy_change: energy_change::EnergyChange,
     total_energy_1000: i64,
     cn_dict: [u32; CN + 1],
     save_folder: String,
@@ -289,204 +288,7 @@ impl Simulation {
 
             let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
 
-            let energy1000_diff = match self.energy {
-                EnergyInput::LinearCn(energy_l_cn) => energy::energy_diff_l_cn(
-                    energy_l_cn,
-                    self.cn_metal[move_from as usize],
-                    self.cn_metal[move_to as usize] - 1,
-                ),
-                EnergyInput::Cn(energy_cn) => {
-                    let (from_change, to_change) = no_int_nn_from_move(
-                        move_from,
-                        move_to,
-                        &self.gridstructure.nn_pair_no_intersec,
-                    );
-
-                    energy::energy_diff_cn(
-                        energy_cn,
-                        from_change
-                            .iter()
-                            .filter(|x| self.occ[**x as usize] != 0)
-                            .map(|x| self.cn_metal[*x as usize]),
-                        to_change
-                            .iter()
-                            .filter(|x| self.occ[**x as usize] != 0)
-                            .map(|x| self.cn_metal[*x as usize]),
-                        self.cn_metal[move_from as usize],
-                        self.cn_metal[move_to as usize],
-                    )
-                }
-                EnergyInput::LinearGcn(energy_l_gcn) => {
-                    let (from_change, to_change) = no_int_nn_from_move(
-                        move_from,
-                        move_to,
-                        &self.gridstructure.nn_pair_no_intersec,
-                    );
-                    energy::energy_diff_l_gcn(
-                        energy_l_gcn,
-                        from_change
-                            .iter()
-                            .filter(|x| self.occ[**x as usize] != 0)
-                            .map(|x| {
-                                let mut gcn = 0;
-                                for o in self.gridstructure.nn[x] {
-                                    if self.occ[o as usize] != 0 {
-                                        gcn += self.cn_metal[o as usize]
-                                    }
-                                }
-                                gcn
-                            }),
-                        to_change
-                            .iter()
-                            .filter(|x| self.occ[**x as usize] != 0)
-                            .map(|x| {
-                                let mut gcn = 0;
-                                for o in self.gridstructure.nn[x] {
-                                    if self.occ[o as usize] != 0 {
-                                        gcn += self.cn_metal[o as usize]
-                                    }
-                                }
-                                gcn
-                            }),
-                        self.cn_metal[move_from as usize],
-                        self.cn_metal[move_to as usize],
-                    )
-                }
-                EnergyInput::Gcn(energy_gcn) => {
-                    let (from_change, to_change, intersect, is_reverse) = no_int_nnn_from_move(
-                        move_from,
-                        move_to,
-                        &self.gridstructure.nnn_pair_no_intersec,
-                    );
-
-                    let (from_change_nn, to_change_nn) = no_int_nn_from_move(
-                        move_from,
-                        move_to,
-                        &self.gridstructure.nn_pair_no_intersec,
-                    );
-
-                    let mut cn_from = 0;
-                    to_change_nn
-                        .iter()
-                        .filter(|x| self.occ[**x as usize] == 1)
-                        .for_each(|_| cn_from += 1);
-
-                    energy::energy_diff_gcn(
-                        energy_gcn,
-                        from_change
-                            .iter()
-                            .filter(|atom_and_neighbors| {
-                                self.occ[*atom_and_neighbors.first().unwrap() as usize] == 1
-                            })
-                            .map(|atom_and_neighbors| {
-                                let old_gcn =
-                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
-                                let mut new_gcn =
-                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
-                                atom_and_neighbors
-                                    .iter()
-                                    .skip(1)
-                                    .filter(|x| {
-                                        self.occ[**x as usize] == 1
-                                            || **x == move_to
-                                            || **x == move_from
-                                    })
-                                    .for_each(|x| {
-                                        if x == &move_from {
-                                            new_gcn -= self.cn_metal[*x as usize]
-                                        } else {
-                                            new_gcn -= 1
-                                        }
-                                    });
-                                (old_gcn, new_gcn)
-                            }),
-                        to_change
-                            .iter()
-                            .filter(|atom_and_neighbors| {
-                                self.occ[*atom_and_neighbors.first().unwrap() as usize] == 1
-                            })
-                            .map(|atom_and_neighbors| {
-                                let old_gcn =
-                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
-                                let mut new_gcn =
-                                    self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
-                                atom_and_neighbors
-                                    .iter()
-                                    .skip(1)
-                                    .filter(|x| {
-                                        self.occ[**x as usize] == 1
-                                            || **x == move_to
-                                            || **x == move_from
-                                    })
-                                    .for_each(|x| {
-                                        if x == &move_to {
-                                            new_gcn += self.cn_metal[*x as usize] - 1
-                                        } else {
-                                            new_gcn += 1
-                                        }
-                                    });
-                                (old_gcn, new_gcn)
-                            }),
-                        intersect
-                            .iter()
-                            .filter(|atom_and_neighbors| {
-                                self.occ[atom_and_neighbors.0 as usize] == 1
-                            })
-                            .map(|atom_and_neighbors| {
-                                let old_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
-                                let mut new_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
-                                let (atom, first_neighbors, second_neighbors, to_from_atoms) =
-                                    atom_and_neighbors;
-                                first_neighbors
-                                    .iter()
-                                    .filter(|atom| {
-                                        self.occ[**atom as usize] == 1
-                                            || **atom == move_to
-                                            || **atom == move_from
-                                    })
-                                    .for_each(|_| {
-                                        if !is_reverse {
-                                            new_gcn -= 1
-                                        } else {
-                                            new_gcn += 1
-                                        }
-                                    });
-                                second_neighbors
-                                    .iter()
-                                    .filter(|atom| {
-                                        self.occ[**atom as usize] == 1
-                                            || **atom == move_to
-                                            || **atom == move_from
-                                    })
-                                    .for_each(|x| {
-                                        if is_reverse {
-                                            new_gcn -= 1
-                                        } else if !is_reverse {
-                                            new_gcn += 1
-                                        }
-                                    });
-                                to_from_atoms
-                                    .iter()
-                                    .filter(|atom| {
-                                        self.occ[**atom as usize] == 1
-                                            || **atom == move_to
-                                            || **atom == move_from
-                                    })
-                                    .for_each(|x| {
-                                        if x == &move_to {
-                                            new_gcn += self.cn_metal[*x as usize] - 1
-                                        } else if x == &move_from {
-                                            new_gcn -= self.cn_metal[*x as usize]
-                                        }
-                                    });
-                                (old_gcn, new_gcn)
-                            }),
-                        self.gcn_metal[move_from as usize],
-                        self.gcn_metal[move_to as usize] - self.cn_metal[move_from as usize]
-                            + cn_from,
-                    )
-                }
-            };
+            let energy1000_diff = self.energy_change_by_move(move_from, move_to);
 
             if !SAVE_ENTIRE_SIM
                 && iiter * self.optimization_cut_off_fraction[1]
@@ -872,6 +674,252 @@ impl Simulation {
         self.total_energy_1000 += energy1000_diff;
     }
 
+    fn energy_change_by_move(&self, move_from: u32, move_to: u32) -> i64 {
+        match self.energy {
+            EnergyInput::LinearCn(energy_l_cn) => energy::energy_diff_l_cn(
+                energy_l_cn,
+                self.cn_metal[move_from as usize],
+                self.cn_metal[move_to as usize] - 1,
+            ),
+            EnergyInput::Cn(energy_cn) => {
+                let (from_change, to_change) = no_int_nn_from_move(
+                    move_from,
+                    move_to,
+                    &self.gridstructure.nn_pair_no_intersec,
+                );
+
+                energy::energy_diff_cn(
+                    energy_cn,
+                    from_change
+                        .iter()
+                        .filter(|x| self.occ[**x as usize] == 1)
+                        .map(|x| self.cn_metal[*x as usize]),
+                    to_change
+                        .iter()
+                        .filter(|x| self.occ[**x as usize] == 1)
+                        .map(|x| self.cn_metal[*x as usize]),
+                    self.cn_metal[move_from as usize],
+                    self.cn_metal[move_to as usize],
+                )
+            }
+            EnergyInput::LinearGcn(energy_l_gcn) => {
+                let (from_change, to_change) = no_int_nn_from_move(
+                    move_from,
+                    move_to,
+                    &self.gridstructure.nn_pair_no_intersec,
+                );
+                energy::energy_diff_l_gcn(
+                    energy_l_gcn,
+                    from_change
+                        .iter()
+                        .filter(|x| self.occ[**x as usize] == 1)
+                        .map(|x| {
+                            let mut gcn = 0;
+                            for o in self.gridstructure.nn[x] {
+                                if self.occ[o as usize] == 1 {
+                                    gcn += self.cn_metal[o as usize]
+                                }
+                            }
+                            gcn
+                        }),
+                    to_change
+                        .iter()
+                        .filter(|x| self.occ[**x as usize] == 1)
+                        .map(|x| {
+                            let mut gcn = 0;
+                            for o in self.gridstructure.nn[x] {
+                                if self.occ[o as usize] == 1 {
+                                    gcn += self.cn_metal[o as usize]
+                                }
+                            }
+                            gcn
+                        }),
+                    self.cn_metal[move_from as usize],
+                    self.cn_metal[move_to as usize],
+                )
+            }
+            EnergyInput::Gcn(energy_gcn) => {
+                let (from_change, to_change, intersect, is_reverse) = no_int_nnn_from_move(
+                    move_from,
+                    move_to,
+                    &self.gridstructure.nnn_pair_no_intersec,
+                );
+
+                let (from_change_nn, to_change_nn) = no_int_nn_from_move(
+                    move_from,
+                    move_to,
+                    &self.gridstructure.nn_pair_no_intersec,
+                );
+
+                let mut cn_from = 0;
+                to_change_nn
+                    .iter()
+                    .filter(|x| self.occ[**x as usize] == 1)
+                    .for_each(|_| cn_from += 1);
+
+                energy::energy_diff_gcn(
+                    energy_gcn,
+                    from_change
+                        .iter()
+                        .filter_map(|x| self.to_change_map(x, move_from, FromOrTo::From)),
+                    to_change.iter().filter_map(|atom_and_neighbors| {
+                        self.to_change_map(atom_and_neighbors, move_to, FromOrTo::To)
+                    }),
+                    intersect
+                        .iter()
+                        .filter(|atom_and_neighbors| self.occ[atom_and_neighbors.0 as usize] == 1)
+                        .map(|atom_and_neighbors| {
+                            self.map_intersec(atom_and_neighbors, move_to, move_from, is_reverse)
+                        }),
+                    // {
+                    //     let old_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
+                    //     let mut new_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
+                    //     let (atom, first_neighbors, second_neighbors, to_from_atoms) =
+                    //         atom_and_neighbors;
+                    //     first_neighbors
+                    //         .iter()
+                    //         .filter(|atom| {
+                    //             self.occ[**atom as usize] == 1
+                    //                 || **atom == move_to
+                    //                 || **atom == move_from
+                    //         })
+                    //         .for_each(|_| {
+                    //             if !is_reverse {
+                    //                 new_gcn -= 1
+                    //             } else {
+                    //                 new_gcn += 1
+                    //             }
+                    //         });
+                    //     second_neighbors
+                    //         .iter()
+                    //         .filter(|atom| {
+                    //             self.occ[**atom as usize] == 1
+                    //                 || **atom == move_to
+                    //                 || **atom == move_from
+                    //         })
+                    //         .for_each(|x| {
+                    //             if is_reverse {
+                    //                 new_gcn -= 1
+                    //             } else if !is_reverse {
+                    //                 new_gcn += 1
+                    //             }
+                    //         });
+                    //     to_from_atoms
+                    //         .iter()
+                    //         .filter(|atom| {
+                    //             self.occ[**atom as usize] == 1
+                    //                 || **atom == move_to
+                    //                 || **atom == move_from
+                    //         })
+                    //         .for_each(|x| {
+                    //             if x == &move_to {
+                    //                 new_gcn += self.cn_metal[*x as usize] - 1
+                    //             } else if x == &move_from {
+                    //                 new_gcn -= self.cn_metal[*x as usize]
+                    //             }
+                    //         });
+                    //     (old_gcn, new_gcn)
+                    // }),
+                    self.gcn_metal[move_from as usize],
+                    self.gcn_metal[move_to as usize] - self.cn_metal[move_from as usize] + cn_from,
+                )
+            }
+        }
+    }
+
+    fn map_intersec(
+        &self,
+        atom_and_neighbors: &(u32, Vec<u32>, Vec<u32>, Vec<u32>),
+        move_to: u32,
+        move_from: u32,
+        is_reverse: bool,
+    ) -> (usize, usize) {
+        let old_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
+        let mut new_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
+        let (atom, first_neighbors, second_neighbors, to_from_atoms) = atom_and_neighbors;
+        first_neighbors
+            .iter()
+            .filter(|atom| {
+                self.occ[**atom as usize] == 1 || **atom == move_to || **atom == move_from
+            })
+            .for_each(|_| {
+                if !is_reverse {
+                    new_gcn -= 1
+                } else {
+                    new_gcn += 1
+                }
+            });
+        second_neighbors
+            .iter()
+            .filter(|atom| {
+                self.occ[**atom as usize] == 1 || **atom == move_to || **atom == move_from
+            })
+            .for_each(|x| {
+                if is_reverse {
+                    new_gcn -= 1
+                } else if !is_reverse {
+                    new_gcn += 1
+                }
+            });
+        to_from_atoms
+            .iter()
+            .filter(|atom| {
+                self.occ[**atom as usize] == 1 || **atom == move_to || **atom == move_from
+            })
+            .for_each(|x| {
+                if x == &move_to {
+                    new_gcn += self.cn_metal[*x as usize] - 1
+                } else if x == &move_from {
+                    new_gcn -= self.cn_metal[*x as usize]
+                }
+            });
+        (old_gcn, new_gcn)
+    }
+
+    fn to_change_map(
+        &self,
+        atom_and_neighbors: &Vec<u32>,
+        move_from_or_to: u32,
+        from_or_to: FromOrTo,
+        // move_to: u32,
+    ) -> Option<(usize, usize)> {
+        if self.occ[*atom_and_neighbors.first().unwrap() as usize] == 1 {
+            let old_gcn = self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
+            let mut new_gcn = self.gcn_metal[*atom_and_neighbors.first().unwrap() as usize];
+            match from_or_to {
+                FromOrTo::From => {
+                    atom_and_neighbors
+                        .iter()
+                        .skip(1)
+                        .filter(|x| self.occ[**x as usize] == 1 || **x == move_from_or_to)
+                        .for_each(|x| {
+                            if x == &move_from_or_to {
+                                new_gcn -= self.cn_metal[*x as usize]
+                            } else {
+                                new_gcn -= 1
+                            }
+                        });
+                }
+                FromOrTo::To => {
+                    atom_and_neighbors
+                        .iter()
+                        .skip(1)
+                        .filter(|x| self.occ[**x as usize] == 1 || **x == move_from_or_to)
+                        .for_each(|x| {
+                            if x == &move_from_or_to {
+                                new_gcn += self.cn_metal[*x as usize] - 1
+                            } else {
+                                new_gcn += 1
+                            }
+                        });
+                }
+            }
+            Some((old_gcn, new_gcn))
+        } else {
+            None
+        }
+    }
+
     fn update_possible_moves(&mut self, move_from: u32, move_to: u32) {
         self.possible_moves.remove_item(move_from, move_to);
         for neighbor_atom in self.gridstructure.nn[&move_from] {
@@ -898,6 +946,7 @@ impl Simulation {
             }
         }
     }
+
     fn cond_snap_and_heat_map(&mut self, iiter: &u64) {
         const NUMBER_HEAT_MAP_SECTIONS: u64 = 200;
 
@@ -1208,4 +1257,8 @@ mod tests {
             .collect::<Vec<(usize, usize)>>();
         assert_eq!(old_gcn, new_gcn);
     }
+}
+enum FromOrTo {
+    From,
+    To,
 }
