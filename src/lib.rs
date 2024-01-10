@@ -148,7 +148,7 @@ impl Simulation {
                     // >1 so that atoms cant leave the cluster
                     // <x cant move if all neighbors are occupied
                     if cn_metal[*u as usize] > 1 {
-                        possible_moves.add_item(*o, *u)
+                        possible_moves.add_item(*o, *u, None)
                     }
                 }
             }
@@ -221,43 +221,18 @@ impl Simulation {
         }
     }
 
-    pub fn run(&mut self, mut amount_unique_levels: i32) -> Results {
+    pub fn run(&mut self, mut amount_unique_levels: i32, simtype: SimType) -> Results {
         let mut rng_choose = SmallRng::from_entropy();
-        // let choose_seed: [u8; 32] = rng_choose.get_seed();
-        //
 
-        // let mut rng_e_number = SmallRng::from_entropy();
-        // let e_number_seed: [u8; 32] = rng_e_number.get_seed();
         let cut_off_perc = self.optimization_cut_off_fraction[0] as f64
             / self.optimization_cut_off_fraction[1] as f64;
 
-        let seed = sim::Seed {
-            rust: "used rust".to_string(),
-            choose_seed: [0; 32],
-            e_number_seed: [0; 32],
-        };
+        let mut lowest_energy_struct = sim::LowestEnergy::default();
 
-        let mut lowest_energy_struct: sim::LowestEnergy = sim::LowestEnergy {
-            energy: f64::INFINITY,
-            cn_total: HashMap::new(),
-            empty_cn: HashMap::new(),
-            iiter: 0,
-        };
         let mut temp_energy_section: i64 = 0;
         let mut temp_cn_dict_section: [u64; CN + 1] = [0; CN + 1];
 
-        let start_energy = self.total_energy_1000 as f64 / 1000.;
-
-        let mut start_cn_dict = HashMap::new();
-
-        for (k, v) in self.cn_dict.iter().enumerate() {
-            start_cn_dict.insert(k as u8, *v);
-        }
-
-        let start: sim::Start = sim::Start {
-            start_energy,
-            start_cn: start_cn_dict,
-        };
+        let start = sim::Start::new(self.total_energy_1000, &self.cn_dict);
 
         let mut lowest_e_onlyocc: HashSet<u32, fnv::FnvBuildHasher> =
             fnv::FnvHashSet::with_capacity_and_hasher(
@@ -286,10 +261,6 @@ impl Simulation {
             let is_recording_sections = iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0];
 
-            let (move_from, move_to) = self.possible_moves.choose_random_item(&mut rng_choose);
-
-            let energy1000_diff = self.energy_change_by_move(move_from, move_to);
-
             if !SAVE_ENTIRE_SIM
                 && iiter * self.optimization_cut_off_fraction[1]
                     == self.niter * self.optimization_cut_off_fraction[0]
@@ -302,19 +273,36 @@ impl Simulation {
                         self.cn_dict[self.cn_metal[o]] += 1;
                     };
                 }
-            }
+            };
 
-            if self.is_acceptance_criteria_fulfilled(
-                energy1000_diff,
-                &mut rng_choose,
-                iiter,
-                cut_off_perc,
-            ) {
-                self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
-                self.update_possible_moves(move_from, move_to);
-                if let Some(map) = &mut self.heat_map {
-                    map[move_to as usize] += 1;
-                    map[move_from as usize] += 1;
+            match simtype {
+                SimType::Mc => {
+                    let (move_from, move_to, _) =
+                        self.possible_moves.choose_random_item_mc(&mut rng_choose);
+
+                    let energy1000_diff = self.energy_change_by_move(move_from, move_to);
+
+                    if self.is_acceptance_criteria_fulfilled(
+                        energy1000_diff,
+                        &mut rng_choose,
+                        iiter,
+                        cut_off_perc,
+                    ) {
+                        self.perform_move(
+                            move_from,
+                            move_to,
+                            energy1000_diff,
+                            is_recording_sections,
+                        );
+                        self.update_possible_moves(move_from, move_to);
+                        if let Some(map) = &mut self.heat_map {
+                            map[move_to as usize] += 1;
+                            map[move_from as usize] += 1;
+                        }
+                    }
+                }
+                SimType::Kmc => {
+                    todo!();
                 }
             }
             self.cond_snap_and_heat_map(&iiter);
@@ -337,20 +325,16 @@ impl Simulation {
                 );
             }
         }
+
         println!("heatmap section len: {:?}", self.heat_map_sections.len());
 
-        {
-            let mut trajectory_lowest_energy =
-                Trajectory::open(self.save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
-
-            read_and_write::write_occ_as_xyz(
-                &mut trajectory_lowest_energy,
-                lowest_e_onlyocc,
-                &self.gridstructure.xsites_positions,
-                &self.gridstructure.unit_cell,
-                &self.occ,
-            );
-        }
+        read_and_write::write_occ_as_xyz(
+            self.save_folder.clone(),
+            lowest_e_onlyocc,
+            &self.gridstructure.xsites_positions,
+            &self.gridstructure.unit_cell,
+            &self.occ,
+        );
 
         if self.heat_map.is_some() {
             let mut wtr = Writer::from_path(self.save_folder.clone() + "/heat_map.csv").unwrap();
@@ -379,7 +363,6 @@ impl Simulation {
             number_all_atoms: self.number_all_atoms,
             energy_section_list: self.energy_sections_list.clone(),
             cn_dict_sections: self.cn_dict_sections.clone(),
-            seed,
             unique_levels: self.unique_levels.clone(),
         }
     }
@@ -456,7 +439,7 @@ impl Simulation {
         if lowest_energy_struct.energy > (self.total_energy_1000 as f64 / 1000.) {
             let mut empty_neighbor_cn: HashMap<u8, u32> = HashMap::new();
             let empty_set: HashSet<&u32> =
-                HashSet::from_iter(self.possible_moves.iter().map(|(_, empty)| empty));
+                HashSet::from_iter(self.possible_moves.iter().map(|(_, empty, _)| empty));
             for empty in empty_set {
                 if self.cn_metal[*empty as usize] > 3 {
                     empty_neighbor_cn
@@ -771,55 +754,6 @@ impl Simulation {
                         .map(|atom_and_neighbors| {
                             self.map_intersec(atom_and_neighbors, move_to, move_from, is_reverse)
                         }),
-                    // {
-                    //     let old_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
-                    //     let mut new_gcn = self.gcn_metal[atom_and_neighbors.0 as usize];
-                    //     let (atom, first_neighbors, second_neighbors, to_from_atoms) =
-                    //         atom_and_neighbors;
-                    //     first_neighbors
-                    //         .iter()
-                    //         .filter(|atom| {
-                    //             self.occ[**atom as usize] == 1
-                    //                 || **atom == move_to
-                    //                 || **atom == move_from
-                    //         })
-                    //         .for_each(|_| {
-                    //             if !is_reverse {
-                    //                 new_gcn -= 1
-                    //             } else {
-                    //                 new_gcn += 1
-                    //             }
-                    //         });
-                    //     second_neighbors
-                    //         .iter()
-                    //         .filter(|atom| {
-                    //             self.occ[**atom as usize] == 1
-                    //                 || **atom == move_to
-                    //                 || **atom == move_from
-                    //         })
-                    //         .for_each(|x| {
-                    //             if is_reverse {
-                    //                 new_gcn -= 1
-                    //             } else if !is_reverse {
-                    //                 new_gcn += 1
-                    //             }
-                    //         });
-                    //     to_from_atoms
-                    //         .iter()
-                    //         .filter(|atom| {
-                    //             self.occ[**atom as usize] == 1
-                    //                 || **atom == move_to
-                    //                 || **atom == move_from
-                    //         })
-                    //         .for_each(|x| {
-                    //             if x == &move_to {
-                    //                 new_gcn += self.cn_metal[*x as usize] - 1
-                    //             } else if x == &move_from {
-                    //                 new_gcn -= self.cn_metal[*x as usize]
-                    //             }
-                    //         });
-                    //     (old_gcn, new_gcn)
-                    // }),
                     self.gcn_metal[move_from as usize],
                     self.gcn_metal[move_to as usize] - self.cn_metal[move_from as usize] + cn_from,
                 )
@@ -929,7 +863,7 @@ impl Simulation {
             if self.occ[neighbor_atom as usize] == 1 {
                 // greater than one because of neighbor moving in this spot
                 if self.cn_metal[move_from as usize] > 1 {
-                    self.possible_moves.add_item(neighbor_atom, move_from);
+                    self.possible_moves.add_item(neighbor_atom, move_from, None);
                 }
             }
         }
@@ -941,7 +875,7 @@ impl Simulation {
             if self.occ[empty_neighbor as usize] == 0 {
                 // greater than one because of neighbor moving in this spot
                 if self.cn_metal[empty_neighbor as usize] > 1 {
-                    self.possible_moves.add_item(move_to, empty_neighbor);
+                    self.possible_moves.add_item(move_to, empty_neighbor, None);
                 }
             }
         }
@@ -1152,7 +1086,7 @@ mod tests {
             Arc::new(gridstructure),
         );
         let (from, to, to2) = 'bar: {
-            for (from, to) in &sim.possible_moves.moves {
+            for (from, to, _) in &sim.possible_moves.moves {
                 for x in sim.gridstructure.nn[to] {
                     if sim.gridstructure.nn[from].contains(&x) && sim.occ[x as usize] == 0 {
                         break 'bar (*from, *to, x);
@@ -1261,4 +1195,8 @@ mod tests {
 enum FromOrTo {
     From,
     To,
+}
+pub enum SimType {
+    Mc,
+    Kmc,
 }

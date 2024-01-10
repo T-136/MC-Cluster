@@ -9,12 +9,14 @@ use time_graph::instrument;
 use vasp_poscar::Poscar;
 
 pub fn write_occ_as_xyz(
-    trajectory: &mut Trajectory,
+    // trajectory: &mut Trajectory,
+    save_folder: String,
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     xsites_positions: &Vec<[f64; 3]>,
     unit_cell: &[f64; 3],
     occ: &Vec<u8>,
 ) {
+    let mut trajectory = Trajectory::open(save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
     let mut xyz: Vec<[f64; 3]> = Vec::new();
     for (j, ii) in onlyocc.iter().enumerate() {
         xyz.insert(j, xsites_positions[*ii as usize]);

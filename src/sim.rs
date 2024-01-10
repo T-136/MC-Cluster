@@ -14,17 +14,37 @@ pub struct LowestEnergy {
     pub empty_cn: HashMap<u8, u32>,
     pub iiter: u64,
 }
-#[derive(Serialize, Deserialize)]
-pub struct Seed {
-    pub rust: String,
-    pub choose_seed: [u8; 32],
-    pub e_number_seed: [u8; 32],
+
+impl Default for LowestEnergy {
+    fn default() -> LowestEnergy {
+        LowestEnergy {
+            energy: f64::INFINITY,
+            cn_total: HashMap::new(),
+            empty_cn: HashMap::new(),
+            iiter: 0,
+        }
+    }
 }
+
 #[derive(Serialize, Deserialize)]
 pub struct Start {
     pub start_energy: f64,
     #[serde(serialize_with = "ordered_map")]
     pub start_cn: HashMap<u8, u32>,
+}
+
+impl Start {
+    pub fn new(total_energy_1000: i64, cn_dict: &[u32]) -> Start {
+        let start_energy = total_energy_1000 as f64 / 1000.;
+        let mut start_cn_dict = HashMap::new();
+        for (k, v) in cn_dict.iter().enumerate() {
+            start_cn_dict.insert(k as u8, *v);
+        }
+        Start {
+            start_energy,
+            start_cn: start_cn_dict,
+        }
+    }
 }
 
 #[serde_as]
@@ -35,7 +55,6 @@ pub struct Results {
     pub number_all_atoms: u32,
     pub energy_section_list: Vec<f64>,
     pub cn_dict_sections: Vec<HashMap<u8, f64>>,
-    pub seed: Seed,
     #[serde_as(as = "Vec<(_, _)>")]
     pub unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
 }
