@@ -8,9 +8,9 @@ fn create_support(
     occ: &mut Vec<u8>,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     iclose: u32,
-) -> Vec<u32> {
+) -> Vec<u8> {
     let center_of_mass: &[f64; 3] = &xsites_positions[iclose as usize];
-    let mut nn_support = vec![0_u32; xsites_positions.len()];
+    let mut nn_support = vec![0_u8; xsites_positions.len()];
     let mut support = Vec::new();
     let refpos = xsites_positions[0];
     for (i, xyz) in xsites_positions.iter().enumerate() {
@@ -42,7 +42,7 @@ fn create_support(
     }
     for sup in support.iter() {
         for neighbor in nn[sup] {
-            if !nn_support.contains(&neighbor) && occ[neighbor as usize] != 2 {
+            if occ[neighbor as usize] != 2 {
                 nn_support[neighbor as usize] = 1;
             }
         }
@@ -59,7 +59,7 @@ pub fn create_input_cluster(
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     nsites: u32,
     support_indices: Option<Vec<u32>>,
-) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>, Option<Vec<u32>>) {
+) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>, Option<Vec<u8>>) {
     let center_of_mass: [f64; 3] = {
         let mut d: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         for coord in xsites_positions {

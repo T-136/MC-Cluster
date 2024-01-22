@@ -1,14 +1,8 @@
 // Pt
-const M_BETA: i64 = -0330;
+const M_BETA: i64 = -330;
 const M_ALPHA: i64 = 3960;
 
-use core::panic;
-
-// Co
-// const M_BETA: i64 = -0219;
-// const M_ALPHA: i64 = 2628;
-
-// enrico
+const SUPPORT: i64 = -211;
 
 #[derive(Clone, Debug)]
 pub enum EnergyInput {
@@ -16,28 +10,6 @@ pub enum EnergyInput {
     Cn([i64; 13]),
     LinearGcn([i64; 2]),
     Gcn([i64; 145]),
-}
-
-const ENRICO_TABLE: [i64; 13] = [
-    2690, 1879, 1660, 1441, 1242, 1043, 814, 725, 546, 427, 0, 219, 0,
-];
-fn enrico_table(cn: usize) -> i64 {
-    match cn {
-        0 => 2690,
-        1 => 1879,
-        2 => 1660,
-        3 => 1441,
-        4 => 1242,
-        5 => 1043,
-        6 => 814,
-        7 => 725,
-        8 => 546,
-        9 => 427,
-        10 => 0,
-        11 => 219,
-        12 => 0,
-        _ => panic!("impossible cn found: {}", cn),
-    }
 }
 
 pub fn energy_1000_calculation(energy: &EnergyInput, cn: usize) -> i64 {
@@ -62,6 +34,8 @@ pub fn energy_diff_cn<I, O>(
     cn_to_list: O,
     move_from_cn: usize,
     move_to_cn: usize,
+    from_at_support: u8,
+    to_at_support: u8,
 ) -> i64
 where
     I: Iterator<Item = usize>,
@@ -78,6 +52,8 @@ where
     }
     energy_diff_1000 -= energy[move_from_cn];
     energy_diff_1000 += energy[move_to_cn - 1];
+    energy_diff_1000 -= SUPPORT * from_at_support as i64;
+    energy_diff_1000 += SUPPORT * to_at_support as i64;
 
     energy_diff_1000
 }
@@ -113,9 +89,16 @@ where
     energy_diff_1000
 }
 
-pub fn energy_diff_l_cn(energy: [i64; 2], cn_from: usize, cn_to: usize) -> i64 {
-    let e = (2 * ((cn_to as i64) * energy[0] + energy[1]))
-        - (2 * ((cn_from as i64) * energy[0] + energy[1]));
+pub fn energy_diff_l_cn(
+    energy: [i64; 2],
+    cn_from: usize,
+    cn_to: usize,
+    from_at_support: u8,
+    to_at_support: u8,
+) -> i64 {
+    let e = (2 * ((cn_to as i64) * energy[0] + energy[1])) + (SUPPORT * to_at_support as i64)
+        - (2 * ((cn_from as i64) * energy[0] + energy[1]))
+        - (SUPPORT * from_at_support as i64);
     e
 }
 pub fn energy_diff_l_gcn<I, O>(

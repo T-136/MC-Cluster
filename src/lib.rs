@@ -35,7 +35,7 @@ const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [9, 9, 9];
+const GRID_SIZE: [u32; 3] = [6, 6, 6];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -47,6 +47,7 @@ pub struct Simulation {
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     cn_metal: Vec<usize>,
     gcn_metal: Vec<usize>,
+    nn_support: Option<Vec<u8>>,
     possible_moves: listdict::ListDict,
     total_energy_1000: i64,
     cn_dict: [u32; CN + 1],
@@ -80,14 +81,14 @@ impl Simulation {
         support_indices: Option<Vec<u32>>,
         gridstructure: Arc<GridStructure>,
     ) -> Simulation {
-        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
+        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 12;
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
-        let (occ, onlyocc, number_all_atoms) = if input_file.is_some() {
+        let (occ, onlyocc, number_all_atoms, nn_support) = if input_file.is_some() {
             let xyz = read_and_write::read_sample(&input_file.unwrap());
             let (occ, onlyocc) =
                 setup::occ_onlyocc_from_xyz(&xyz, nsites, &gridstructure.xsites_positions);
             let number_of_atoms: u32 = onlyocc.len() as u32;
-            (occ, onlyocc, number_of_atoms)
+            (occ, onlyocc, number_of_atoms, None)
         } else if atoms_input.is_some() {
             let number_of_atom = atoms_input.unwrap();
             let (occ, onlyocc, nn_support) = setup::create_input_cluster(
@@ -97,7 +98,7 @@ impl Simulation {
                 nsites,
                 support_indices,
             );
-            (occ, onlyocc, number_of_atom)
+            (occ, onlyocc, number_of_atom, nn_support)
         } else {
             panic!("gib input atoms or input file");
         };
@@ -203,6 +204,7 @@ impl Simulation {
             onlyocc,
             cn_metal,
             gcn_metal,
+            nn_support,
             possible_moves,
             total_energy_1000,
             cn_dict,
@@ -221,7 +223,7 @@ impl Simulation {
         }
     }
 
-    pub fn run(&mut self, mut amount_unique_levels: i32, simtype: SimType) -> Results {
+    pub fn run(&mut self, mut amount_unique_levels: i32) -> Results {
         let mut rng_choose = SmallRng::from_entropy();
 
         let cut_off_perc = self.optimization_cut_off_fraction[0] as f64
@@ -275,36 +277,25 @@ impl Simulation {
                 }
             };
 
-            match simtype {
-                SimType::Mc => {
-                    let (move_from, move_to, _) =
-                        self.possible_moves.choose_random_item_mc(&mut rng_choose);
+            let (move_from, move_to, _) =
+                self.possible_moves.choose_random_item_mc(&mut rng_choose);
 
-                    let energy1000_diff = self.energy_change_by_move(move_from, move_to);
+            let energy1000_diff = self.energy_change_by_move(move_from, move_to);
 
-                    if self.is_acceptance_criteria_fulfilled(
-                        energy1000_diff,
-                        &mut rng_choose,
-                        iiter,
-                        cut_off_perc,
-                    ) {
-                        self.perform_move(
-                            move_from,
-                            move_to,
-                            energy1000_diff,
-                            is_recording_sections,
-                        );
-                        self.update_possible_moves(move_from, move_to);
-                        if let Some(map) = &mut self.heat_map {
-                            map[move_to as usize] += 1;
-                            map[move_from as usize] += 1;
-                        }
-                    }
-                }
-                SimType::Kmc => {
-                    todo!();
+            if self.is_acceptance_criteria_fulfilled(
+                energy1000_diff,
+                &mut rng_choose,
+                iiter,
+                cut_off_perc,
+            ) {
+                self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
+                self.update_possible_moves(move_from, move_to);
+                if let Some(map) = &mut self.heat_map {
+                    map[move_to as usize] += 1;
+                    map[move_from as usize] += 1;
                 }
             }
+
             self.cond_snap_and_heat_map(&iiter);
 
             if iiter * self.optimization_cut_off_fraction[1]
@@ -658,11 +649,21 @@ impl Simulation {
     }
 
     fn energy_change_by_move(&self, move_from: u32, move_to: u32) -> i64 {
+        let (from_at_support, to_at_support) = if let Some(nn_support) = &self.nn_support {
+            let from_at_support = nn_support[move_from as usize];
+            let to_at_support = nn_support[move_to as usize];
+            (from_at_support, to_at_support)
+        } else {
+            (0, 0)
+        };
+
         match self.energy {
             EnergyInput::LinearCn(energy_l_cn) => energy::energy_diff_l_cn(
                 energy_l_cn,
                 self.cn_metal[move_from as usize],
                 self.cn_metal[move_to as usize] - 1,
+                from_at_support,
+                to_at_support,
             ),
             EnergyInput::Cn(energy_cn) => {
                 let (from_change, to_change) = no_int_nn_from_move(
@@ -683,6 +684,8 @@ impl Simulation {
                         .map(|x| self.cn_metal[*x as usize]),
                     self.cn_metal[move_from as usize],
                     self.cn_metal[move_to as usize],
+                    from_at_support,
+                    to_at_support,
                 )
             }
             EnergyInput::LinearGcn(energy_l_gcn) => {
@@ -1195,8 +1198,4 @@ mod tests {
 enum FromOrTo {
     From,
     To,
-}
-pub enum SimType {
-    Mc,
-    Kmc,
 }

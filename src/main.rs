@@ -237,7 +237,7 @@ fn main() {
                 support_indices,
                 gridstructure_arc,
             );
-            let exp = sim.run(unique_levels, mc::SimType::Mc);
+            let exp = sim.run(unique_levels);
             sim.write_exp_file(&exp);
         }));
     }
