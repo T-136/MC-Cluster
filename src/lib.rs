@@ -63,6 +63,7 @@ pub struct Simulation {
     heat_map_sections: Vec<Vec<u64>>,
     energy: EnergyInput,
     gridstructure: Arc<GridStructure>,
+    support_e: i64,
 }
 
 impl Simulation {
@@ -80,6 +81,7 @@ impl Simulation {
         energy: EnergyInput,
         support_indices: Option<Vec<u32>>,
         gridstructure: Arc<GridStructure>,
+        support_e: i64,
     ) -> Simulation {
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 12;
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
@@ -220,6 +222,7 @@ impl Simulation {
             heat_map_sections,
             energy,
             gridstructure,
+            support_e,
         }
     }
 
@@ -664,6 +667,7 @@ impl Simulation {
                 self.cn_metal[move_to as usize] - 1,
                 from_at_support,
                 to_at_support,
+                self.support_e,
             ),
             EnergyInput::Cn(energy_cn) => {
                 let (from_change, to_change) = no_int_nn_from_move(
@@ -686,6 +690,7 @@ impl Simulation {
                     self.cn_metal[move_to as usize],
                     from_at_support,
                     to_at_support,
+                    self.support_e,
                 )
             }
             EnergyInput::LinearGcn(energy_l_gcn) => {
@@ -1087,6 +1092,7 @@ mod tests {
             energy,
             None,
             Arc::new(gridstructure),
+            0,
         );
         let (from, to, to2) = 'bar: {
             for (from, to, _) in &sim.possible_moves.moves {

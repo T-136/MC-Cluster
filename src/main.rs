@@ -87,6 +87,9 @@ struct Args {
     begin_temperature: Option<f64>,
 
     #[arg(long, allow_hyphen_values(true))]
+    support_e: Option<i64>,
+
+    #[arg(long, allow_hyphen_values(true))]
     e_l_cn: Option<String>,
 
     #[arg(long, allow_hyphen_values(true))]
@@ -186,6 +189,7 @@ fn main() {
     let bulk_file_name: String = args.core_file;
     let optimization_cut_off_fraction: Vec<u64> = args.optimization_cut_off_fraction;
     let repetition = args.repetition;
+    let support_e = args.support_e.unwrap_or(0);
 
     let energy = if args.e_l_cn.is_some() {
         EnergyInput::LinearCn(collect_energy_values([0; 2], args.e_l_cn.unwrap()))
@@ -236,6 +240,7 @@ fn main() {
                 energy,
                 support_indices,
                 gridstructure_arc,
+                support_e,
             );
             let exp = sim.run(unique_levels);
             sim.write_exp_file(&exp);

@@ -2,7 +2,7 @@
 const M_BETA: i64 = -330;
 const M_ALPHA: i64 = 3960;
 
-const SUPPORT: i64 = -211;
+// const support_e: i64 = -211;
 
 #[derive(Clone, Debug)]
 pub enum EnergyInput {
@@ -36,6 +36,7 @@ pub fn energy_diff_cn<I, O>(
     move_to_cn: usize,
     from_at_support: u8,
     to_at_support: u8,
+    support_e: i64,
 ) -> i64
 where
     I: Iterator<Item = usize>,
@@ -52,8 +53,8 @@ where
     }
     energy_diff_1000 -= energy[move_from_cn];
     energy_diff_1000 += energy[move_to_cn - 1];
-    energy_diff_1000 -= SUPPORT * from_at_support as i64;
-    energy_diff_1000 += SUPPORT * to_at_support as i64;
+    energy_diff_1000 -= support_e * from_at_support as i64;
+    energy_diff_1000 += support_e * to_at_support as i64;
 
     energy_diff_1000
 }
@@ -95,10 +96,11 @@ pub fn energy_diff_l_cn(
     cn_to: usize,
     from_at_support: u8,
     to_at_support: u8,
+    support_e: i64,
 ) -> i64 {
-    let e = (2 * ((cn_to as i64) * energy[0] + energy[1])) + (SUPPORT * to_at_support as i64)
+    let e = (2 * ((cn_to as i64) * energy[0] + energy[1])) + (support_e * to_at_support as i64)
         - (2 * ((cn_from as i64) * energy[0] + energy[1]))
-        - (SUPPORT * from_at_support as i64);
+        - (support_e * from_at_support as i64);
     e
 }
 pub fn energy_diff_l_gcn<I, O>(
