@@ -22,18 +22,18 @@ pub struct GridStructure {
 
 impl GridStructure {
     pub fn new(
-        pairlist_file: String,
-        n_pairlist_file: String,
-        nn_pair_no_int_file: String,
-        nnn_pair_no_int_file: String,
-        atom_sites: String,
-        bulk_file_name: String,
+        pairlist_file: &'static str,
+        n_pairlist_file: &'static str,
+        nn_pair_no_int_file: &'static str,
+        nnn_pair_no_int_file: &'static str,
+        atom_sites: &'static str,
+        bulk_file_name: &'static str,
     ) -> GridStructure {
         let nsites: u32 = super::GRID_SIZE[0] * super::GRID_SIZE[1] * super::GRID_SIZE[2] * 4;
-        let nn = read_and_write::read_nn(&pairlist_file);
-        let nnn = read_and_write::read_nnn(&n_pairlist_file);
-        let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(&nn_pair_no_int_file);
-        let nnn_pair_no_intersec = read_and_write::read_nnn_pair_no_intersec(&nnn_pair_no_int_file);
+        let nn = read_and_write::read_nn(pairlist_file);
+        let nnn = read_and_write::read_nnn(n_pairlist_file);
+        let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(nn_pair_no_int_file);
+        let nnn_pair_no_intersec = read_and_write::read_nnn_pair_no_intersec(nnn_pair_no_int_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
             panic!(
