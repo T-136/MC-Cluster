@@ -35,7 +35,7 @@ const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [6, 6, 6];
+const GRID_SIZE: [u32; 3] = [9, 9, 9];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
@@ -83,7 +83,8 @@ impl Simulation {
         gridstructure: &'static GridStructure,
         support_e: i64,
     ) -> Simulation {
-        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 12;
+        // 12
+        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
         let (occ, onlyocc, number_all_atoms, nn_support) = if input_file.is_some() {
             let xyz = read_and_write::read_sample(&input_file.unwrap());
@@ -133,18 +134,36 @@ impl Simulation {
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
         for o in onlyocc.iter() {
+            let at_support = if let Some(nn_support) = &nn_support {
+                nn_support[*o as usize]
+            } else {
+                0
+            };
             match energy {
                 EnergyInput::LinearCn(_) | EnergyInput::Cn(_) => {
-                    let energy_1000: i64 =
-                        energy::energy_1000_calculation(&energy, cn_metal[*o as usize]);
-                    total_energy_1000 += energy_1000;
+                    total_energy_1000 += energy::energy_1000_calculation(
+                        &energy,
+                        cn_metal[*o as usize],
+                        at_support,
+                        support_e,
+                    );
                 }
 
                 EnergyInput::LinearGcn(_) | EnergyInput::Gcn(_) => {
-                    total_energy_1000 +=
-                        energy::energy_1000_calculation(&energy, gcn_metal[*o as usize])
+                    total_energy_1000 += energy::energy_1000_calculation(
+                        &energy,
+                        gcn_metal[*o as usize],
+                        at_support,
+                        support_e,
+                    );
                 }
             };
+            // total_energy_1000 += energy::energy_1000_calculation(
+            //     &energy,
+            //     gcn_metal[*o as usize],
+            //     at_support,
+            //     support_e,
+            // );
 
             for u in &gridstructure.nn[o] {
                 if occ[*u as usize] == 0 {

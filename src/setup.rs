@@ -47,8 +47,6 @@ fn create_support(
             }
         }
     }
-    println!("{:?}", nn_support);
-    println!("{:?}", occ);
     // panic!("fds");
     nn_support
 }

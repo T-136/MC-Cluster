@@ -12,10 +12,15 @@ pub enum EnergyInput {
     Gcn([i64; 145]),
 }
 
-pub fn energy_1000_calculation(energy: &EnergyInput, cn: usize) -> i64 {
+pub fn energy_1000_calculation(
+    energy: &EnergyInput,
+    cn: usize,
+    at_support: u8,
+    support_e: i64,
+) -> i64 {
     match energy {
-        EnergyInput::LinearCn(e) => e[0] * cn as i64 + e[1],
-        EnergyInput::Cn(e) => e[cn],
+        EnergyInput::LinearCn(e) => e[0] * cn as i64 + e[1] + support_e * at_support as i64,
+        EnergyInput::Cn(e) => e[cn] + support_e * at_support as i64,
         EnergyInput::LinearGcn(e) => {
             println!("e1 {}", e[0]);
             println!("e2 {}", e[1]);
