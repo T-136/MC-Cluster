@@ -4,7 +4,7 @@ use vasp_poscar::Poscar;
 
 pub struct GridStructure {
     pub nn: HashMap<u32, [u32; super::CN], fnv::FnvBuildHasher>,
-    pub nnn: HashMap<u32, [u32; super::GCN], fnv::FnvBuildHasher>,
+    // pub nnn: HashMap<u32, [u32; super::GCN], fnv::FnvBuildHasher>,
     pub nn_pair_no_intersec:
         HashMap<u64, [[u32; super::NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
     pub nnn_pair_no_intersec: HashMap<
@@ -23,7 +23,7 @@ pub struct GridStructure {
 impl GridStructure {
     pub fn new(
         pairlist_file: &'static str,
-        n_pairlist_file: &'static str,
+        // n_pairlist_file: &'static str,
         nn_pair_no_int_file: &'static str,
         nnn_pair_no_int_file: &'static str,
         atom_sites: &'static str,
@@ -31,7 +31,7 @@ impl GridStructure {
     ) -> GridStructure {
         let nsites: u32 = super::GRID_SIZE[0] * super::GRID_SIZE[1] * super::GRID_SIZE[2] * 4;
         let nn = read_and_write::read_nn(pairlist_file);
-        let nnn = read_and_write::read_nnn(n_pairlist_file);
+        // let nnn = read_and_write::read_nnn(n_pairlist_file);
         let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(nn_pair_no_int_file);
         let nnn_pair_no_intersec = read_and_write::read_nnn_pair_no_intersec(nnn_pair_no_int_file);
 
@@ -53,7 +53,7 @@ impl GridStructure {
 
         GridStructure {
             nn,
-            nnn,
+            // nnn,
             nn_pair_no_intersec,
             nnn_pair_no_intersec,
             xsites_positions,

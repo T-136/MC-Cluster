@@ -35,7 +35,7 @@ const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [9, 9, 9];
+const GRID_SIZE: [u32; 3] = [30, 30, 30];
 
 const SAVE_ENTIRE_SIM: bool = false;
 
