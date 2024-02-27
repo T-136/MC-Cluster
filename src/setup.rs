@@ -96,7 +96,7 @@ pub fn create_input_cluster(
     let mut onlyocc: HashSet<u32, FnvBuildHasher> =
         fnv::FnvHashSet::with_capacity_and_hasher(*number_of_atoms as usize, Default::default());
 
-    occ = vec![0; nsites as usize];
+    occ = vec![0_u8; nsites as usize];
 
     let nn_support =
         support_indices.map(|sup| create_support(xsites_positions, sup, &mut occ, nn, iclose));

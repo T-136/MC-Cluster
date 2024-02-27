@@ -35,9 +35,9 @@ const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [30, 30, 30];
+const GRID_SIZE: [u32; 3] = [20, 20, 20];
 
-const SAVE_ENTIRE_SIM: bool = false;
+const SAVE_ENTIRE_SIM: bool = true;
 
 #[derive(Clone)]
 pub struct Simulation {
@@ -51,6 +51,7 @@ pub struct Simulation {
     possible_moves: listdict::ListDict,
     total_energy_1000: i64,
     cn_dict: [u32; CN + 1],
+    cn_dict_at_supp: [u32; CN + 1],
     save_folder: String,
     start_temperature: Option<f64>,
     temperature: f64,
@@ -83,9 +84,12 @@ impl Simulation {
         gridstructure: &'static GridStructure,
         support_e: i64,
     ) -> Simulation {
-        // 12
+        //4
+        //111: 12
+        //hcp: 8
         let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
+        let mut cn_dict_at_supp: [u32; CN + 1] = [0; CN + 1];
         let (occ, onlyocc, number_all_atoms, nn_support) = if input_file.is_some() {
             let xyz = read_and_write::read_sample(&input_file.unwrap());
             let (occ, onlyocc) =
@@ -117,6 +121,11 @@ impl Simulation {
             }
             cn_metal.push(neighbors as usize);
             if occ[o as usize] == 1 {
+                if let Some(nn_support) = &nn_support {
+                    if nn_support[o as usize] == 1 {
+                        cn_dict_at_supp[cn_metal[o as usize]] += 1;
+                    }
+                }
                 cn_dict[cn_metal[o as usize]] += 1;
             };
         }
@@ -229,6 +238,7 @@ impl Simulation {
             possible_moves,
             total_energy_1000,
             cn_dict,
+            cn_dict_at_supp,
             save_folder: sub_folder,
             start_temperature,
             temperature,
@@ -292,9 +302,22 @@ impl Simulation {
                 self.cn_dict.iter_mut().for_each(|x| {
                     *x = 0;
                 });
+                self.cn_dict_at_supp.iter_mut().for_each(|x| {
+                    *x = 0;
+                });
                 for o in 0..self.cn_metal.len() {
                     if self.occ[o] == 1 {
-                        self.cn_dict[self.cn_metal[o]] += 1;
+                        self.update_cn_dict(o, self.cn_metal[o as usize], true);
+                        // if let Some(nn_support) = self.nn_support {
+                        //     if nn_support[o as usize] == 1 {
+                        //         self.cn_dict_at_supp[self.cn_metal[o as usize]] += 1;
+                        //     } else {
+                        //         self.cn_dict[self.cn_metal[o as usize]] += 1;
+                        //     }
+                        // } else {
+                        //     self.cn_dict[self.cn_metal[o as usize]] += 1;
+                        // }
+                        // self.cn_dict[self.cn_metal[o]] += 1;
                     };
                 }
             };
@@ -311,6 +334,9 @@ impl Simulation {
                 cut_off_perc,
             ) {
                 self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
+                println!("{:?}", self.cn_dict);
+                println!("{:?}", self.cn_dict_at_supp);
+                // panic!("noooo");
                 self.update_possible_moves(move_from, move_to);
                 if let Some(map) = &mut self.heat_map {
                     map[move_to as usize] += 1;
@@ -471,6 +497,12 @@ impl Simulation {
             }
             lowest_energy_struct.cn_total = cn_hash_map;
 
+            let mut cn_hash_map_at_supp: HashMap<u8, u32> = HashMap::new();
+            for (i, v) in self.cn_dict_at_supp.into_iter().enumerate() {
+                cn_hash_map_at_supp.insert(i as u8, v);
+            }
+            lowest_energy_struct.cn_dict_at_supp = cn_hash_map_at_supp;
+
             Some(self.onlyocc.clone())
         } else {
             None
@@ -532,7 +564,8 @@ impl Simulation {
         self.onlyocc.insert(move_to);
 
         if SAVE_ENTIRE_SIM || is_recording_sections {
-            self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
+            // self.cn_dict[self.cn_metal[move_from as usize]] -= 1;
+            self.update_cn_dict(move_from as usize, self.cn_metal[move_from as usize], false);
         }
         // let (from_change, to_change) = self.no_int_from_move(move_from, move_to);
         for o in self.gridstructure.nn[&move_from] {
@@ -540,8 +573,10 @@ impl Simulation {
                 && self.occ[o as usize] == 1
                 && o != move_to
             {
-                self.cn_dict[self.cn_metal[o as usize]] -= 1;
-                self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
+                self.update_cn_dict(o as usize, self.cn_metal[o as usize], false);
+                self.update_cn_dict(o as usize, self.cn_metal[o as usize] - 1, true);
+                // self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                // self.cn_dict[self.cn_metal[o as usize] - 1] += 1;
             }
             self.cn_metal[o as usize] -= 1;
         }
@@ -550,8 +585,10 @@ impl Simulation {
                 && self.occ[o as usize] == 1
                 && o != move_from
             {
-                self.cn_dict[self.cn_metal[o as usize]] -= 1;
-                self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
+                self.update_cn_dict(o as usize, self.cn_metal[o as usize], false);
+                self.update_cn_dict(o as usize, self.cn_metal[o as usize] + 1, true);
+                // self.cn_dict[self.cn_metal[o as usize]] -= 1;
+                // self.cn_dict[self.cn_metal[o as usize] + 1] += 1;
             }
             self.cn_metal[o as usize] += 1;
         }
@@ -664,7 +701,8 @@ impl Simulation {
             }
         }
         if SAVE_ENTIRE_SIM || is_recording_sections {
-            self.cn_dict[self.cn_metal[move_to as usize]] += 1;
+            self.update_cn_dict(move_to as usize, self.cn_metal[move_to as usize], true);
+            // self.cn_dict[self.cn_metal[move_to as usize]] += 1;
         }
 
         self.total_energy_1000 += energy1000_diff;
@@ -936,6 +974,28 @@ impl Simulation {
                     .enumerate()
                     .for_each(|(i, x)| *x = heat_map[i]);
                 self.heat_map_sections.push(t_vec);
+            }
+        }
+    }
+
+    #[inline]
+    fn update_cn_dict(&mut self, atom: usize, cn: usize, change_is_positiv: bool) {
+        match change_is_positiv {
+            true => {
+                if let Some(nn_support) = &self.nn_support {
+                    if nn_support[atom] == 1 {
+                        self.cn_dict_at_supp[cn] += 1;
+                    }
+                }
+                self.cn_dict[cn] += 1;
+            }
+            false => {
+                if let Some(nn_support) = &self.nn_support {
+                    if nn_support[atom] == 1 {
+                        self.cn_dict_at_supp[cn] -= 1;
+                    }
+                }
+                self.cn_dict[cn] -= 1;
             }
         }
     }
