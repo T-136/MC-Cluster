@@ -334,9 +334,6 @@ impl Simulation {
                 cut_off_perc,
             ) {
                 self.perform_move(move_from, move_to, energy1000_diff, is_recording_sections);
-                println!("{:?}", self.cn_dict);
-                println!("{:?}", self.cn_dict_at_supp);
-                // panic!("noooo");
                 self.update_possible_moves(move_from, move_to);
                 if let Some(map) = &mut self.heat_map {
                     map[move_to as usize] += 1;
