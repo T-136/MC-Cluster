@@ -2,7 +2,7 @@ use anyhow;
 use chemfiles::{Atom, Frame, Trajectory, UnitCell};
 use core::panic;
 use csv::Writer;
-use energy::EnergyInput;
+use energy::{ChangeCn, CnOrSite, EnergyInput, Sites};
 use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
@@ -87,7 +87,7 @@ impl Simulation {
         //4
         //111: 12
         //hcp: 8
-        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
+        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 12;
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
         let mut cn_dict_at_supp: [u32; CN + 1] = [0; CN + 1];
         let (occ, onlyocc, number_all_atoms, nn_support) = if input_file.is_some() {
@@ -598,7 +598,7 @@ impl Simulation {
                     move_to,
                     &self.gridstructure.nnn_pair_no_intersec,
                 );
-                let (from_change_nn, to_change_nn) = no_int_nn_from_move(
+                let (from_change_nn, to_change_nn, intersect_nn) = no_int_nn_from_move(
                     move_from,
                     move_to,
                     &self.gridstructure.nn_pair_no_intersec,
@@ -705,6 +705,161 @@ impl Simulation {
         self.total_energy_1000 += energy1000_diff;
     }
 
+    fn check_change(
+        &self,
+        atom: &u32,
+        cn: usize,
+        change_list_from: &[u32; 7],
+        change_list_to: &[u32; 7],
+        change: Option<i8>,
+    ) -> Sites {
+        if cn as i8 + change.unwrap_or(0) == 5 {
+            for neighbor in self.gridstructure.nn[atom] {
+                let mut corretion = 0;
+                if change.is_some() {
+                    if change_list_from.contains(&neighbor) {
+                        corretion = -1
+                    } else if change_list_to.contains(&neighbor) {
+                        corretion = 1
+                    }
+                }
+                if self.cn_metal[neighbor as usize] as i8 + corretion == 10 {
+                    return Sites::B5A;
+                }
+            }
+
+            Sites::None
+        } else if cn as i8 + change.unwrap_or(0) == 6 {
+            Sites::B6
+        } else {
+            Sites::None
+        }
+    }
+
+    fn filter_map_energy_inter(
+        &self,
+        atom: &u32,
+        change_list_from: &[u32; 7],
+        change_list_to: &[u32; 7],
+        change: i8,
+    ) -> Option<energy::CnOrSite> {
+        if self.occ[*atom as usize] == 0 {
+            Some(CnOrSite::Site(ChangeCn {
+                before: self.check_change(
+                    atom,
+                    self.cn_metal[*atom as usize],
+                    change_list_from,
+                    change_list_to,
+                    None,
+                ),
+                after: self.check_change(
+                    atom,
+                    self.cn_metal[*atom as usize],
+                    change_list_from,
+                    change_list_to,
+                    Some(0),
+                ),
+            }))
+        } else {
+            None
+        }
+    }
+
+    fn filter_map_energy(
+        &self,
+        atom: &u32,
+        change_list_from: &[u32; 7],
+        change_list_to: &[u32; 7],
+        change: i8,
+    ) -> Option<energy::CnOrSite> {
+        if self.occ[*atom as usize] == 2 {
+            None
+        } else if self.occ[*atom as usize] == 1 {
+            Some(CnOrSite::Atom(ChangeCn {
+                before: self.cn_metal[*atom as usize],
+                after: (self.cn_metal[*atom as usize] as i8 + change) as usize,
+            }))
+        } else if self.occ[*atom as usize] == 0 {
+            Some(CnOrSite::Site(ChangeCn {
+                before: self.check_change(
+                    atom,
+                    self.cn_metal[*atom as usize],
+                    change_list_from,
+                    change_list_to,
+                    None,
+                ),
+                after: self.check_change(
+                    atom,
+                    self.cn_metal[*atom as usize],
+                    change_list_from,
+                    change_list_to,
+                    Some(change),
+                ),
+            }))
+        } else {
+            panic!("unknown atom type number");
+        }
+    }
+
+    fn energy_diff_outer(
+        &self,
+        move_from: u32,
+        move_to: u32,
+        from_change: [u32; 7],
+        to_change: [u32; 7],
+        intersect: [u32; 4],
+    ) -> i64 {
+        let mut b5a_site = 0;
+        for n_atom in from_change
+            .iter()
+            .flat_map(|atom| self.gridstructure.nn[atom].iter())
+        {
+            if self.occ[*n_atom as usize] == 0
+                && self.cn_metal[*n_atom as usize] == 5
+                && !from_change.contains(n_atom)
+                && !intersect.contains(n_atom)
+                && n_atom != &move_from
+                && n_atom != &move_to
+            {
+                for x in self.gridstructure.nn[n_atom].iter() {
+                    if from_change.contains(x) {
+                        if x == &10_u32 {
+                            b5a_site -= 1;
+                        } else if x == &11_u32 {
+                            b5a_site += 1;
+                        }
+                    }
+                }
+            }
+        }
+        for n_atom in to_change
+            .iter()
+            .flat_map(|atom| self.gridstructure.nn[atom].iter())
+        {
+            if self.occ[*n_atom as usize] == 0
+                && self.cn_metal[*n_atom as usize] == 5
+                && !from_change.contains(n_atom)
+                && !intersect.contains(n_atom)
+                && n_atom != &move_from
+                && n_atom != &move_to
+            {
+                for x in self.gridstructure.nn[n_atom].iter() {
+                    if to_change.contains(x) {
+                        if x == &10_u32 {
+                            b5a_site -= 1;
+                        } else if x == &9_u32 {
+                            b5a_site += 1;
+                        }
+                    }
+                }
+            }
+        }
+        if b5a_site != 0 {
+            std::panic!("b5a count: {} \n", b5a_site);
+        }
+        energy::outer_sites_energy(b5a_site)
+    }
+
     fn energy_change_by_move(&self, move_from: u32, move_to: u32) -> i64 {
         let (from_at_support, to_at_support) = if let Some(nn_support) = &self.nn_support {
             let from_at_support = nn_support[move_from as usize];
@@ -724,7 +879,7 @@ impl Simulation {
                 self.support_e,
             ),
             EnergyInput::Cn(energy_cn) => {
-                let (from_change, to_change) = no_int_nn_from_move(
+                let (from_change, to_change, intersect) = no_int_nn_from_move(
                     move_from,
                     move_to,
                     &self.gridstructure.nn_pair_no_intersec,
@@ -732,23 +887,40 @@ impl Simulation {
 
                 energy::energy_diff_cn(
                     energy_cn,
-                    from_change
-                        .iter()
-                        .filter(|x| self.occ[**x as usize] == 1)
-                        .map(|x| self.cn_metal[*x as usize]),
-                    to_change
-                        .iter()
-                        .filter(|x| self.occ[**x as usize] == 1)
-                        .map(|x| self.cn_metal[*x as usize]),
+                    from_change.iter().filter_map(|atom| {
+                        self.filter_map_energy(atom, &from_change, &to_change, -1)
+                    }),
+                    // .map(|x| self.cn_metal[*x as usize]),
+                    to_change.iter().filter_map(|atom| {
+                        self.filter_map_energy(atom, &from_change, &to_change, 1)
+                    }),
+                    intersect.iter().filter_map(|atom| {
+                        self.filter_map_energy_inter(atom, &from_change, &to_change, 0)
+                    }),
+                    // .map(|x| self.cn_metal[*x as usize]),
                     self.cn_metal[move_from as usize],
                     self.cn_metal[move_to as usize],
+                    self.check_change(
+                        &move_from,
+                        self.cn_metal[move_from as usize],
+                        &from_change,
+                        &to_change,
+                        Some(1),
+                    ),
+                    self.check_change(
+                        &move_to,
+                        self.cn_metal[move_to as usize],
+                        &to_change,
+                        &to_change,
+                        None,
+                    ),
                     from_at_support,
                     to_at_support,
                     self.support_e,
                 )
             }
             EnergyInput::LinearGcn(energy_l_gcn) => {
-                let (from_change, to_change) = no_int_nn_from_move(
+                let (from_change, to_change, intersect) = no_int_nn_from_move(
                     move_from,
                     move_to,
                     &self.gridstructure.nn_pair_no_intersec,
@@ -790,7 +962,7 @@ impl Simulation {
                     &self.gridstructure.nnn_pair_no_intersec,
                 );
 
-                let (from_change_nn, to_change_nn) = no_int_nn_from_move(
+                let (from_change_nn, to_change_nn, intersect_nn) = no_int_nn_from_move(
                     move_from,
                     move_to,
                     &self.gridstructure.nn_pair_no_intersec,
@@ -997,17 +1169,26 @@ impl Simulation {
         }
     }
 }
+
 fn no_int_nn_from_move(
     move_from: u32,
     move_to: u32,
-    nn_pair_no_intersec: &HashMap<u64, [[u32; NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
-) -> ([u32; 7], [u32; 7]) {
-    let no_int = nn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
+    nn_pair_no_intersec: &HashMap<u64, read_and_write::NnPairNoIntersectInt, fnv::FnvBuildHasher>,
+) -> ([u32; 7], [u32; 7], [u32; 4]) {
+    let no_int = &nn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
         + ((std::cmp::max(move_to, move_from) as u64) << 32))];
     if move_to > move_from {
-        (no_int[0], no_int[1])
+        (
+            no_int.no_intersect_first,
+            no_int.no_intersect_second,
+            no_int.intersect,
+        )
     } else {
-        (no_int[1], no_int[0])
+        (
+            no_int.no_intersect_second,
+            no_int.no_intersect_first,
+            no_int.intersect,
+        )
     }
 }
 
@@ -1277,6 +1458,7 @@ pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> 
 //         assert_eq!(old_gcn, new_gcn);
 //     }
 // }
+
 enum FromOrTo {
     From,
     To,

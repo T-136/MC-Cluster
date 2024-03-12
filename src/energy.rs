@@ -2,6 +2,27 @@
 const M_BETA: i64 = -330;
 const M_ALPHA: i64 = 3960;
 
+pub enum CnOrSite {
+    Site(ChangeCn<Sites>),
+    Atom(ChangeCn<usize>),
+}
+
+pub struct ChangeCn<T> {
+    pub before: T,
+    pub after: T,
+}
+
+pub enum Sites {
+    B5A,
+    B5B,
+    B6,
+    None,
+}
+
+const B5A: i64 = -199;
+const B5B: i64 = 0;
+const B6: i64 = 0;
+
 // const support_e: i64 = -211;
 
 #[derive(Clone, Debug)]
@@ -33,33 +54,81 @@ pub fn energy_1000_calculation(
     // cn[*atom as usize] as i64 * M_BETA + M_ALPHA
 }
 
-pub fn energy_diff_cn<I, O>(
+fn energy_of_site(site: Sites) -> i64 {
+    match site {
+        Sites::B5A => B5A,
+        Sites::B5B => B5B,
+        Sites::B6 => B6,
+        Sites::None => 0,
+    }
+}
+
+pub fn outer_sites_energy(b5a_site: i8) -> i64 {
+    b5a_site as i64 * B5A
+}
+
+pub fn energy_diff_cn<I, O, P>(
     energy: [i64; 13],
     cn_from_list: I,
     cn_to_list: O,
+    cn_intersect: P,
     move_from_cn: usize,
     move_to_cn: usize,
+    move_from_site: Sites,
+    move_to_site: Sites,
     from_at_support: u8,
     to_at_support: u8,
     support_e: i64,
 ) -> i64
 where
-    I: Iterator<Item = usize>,
-    O: Iterator<Item = usize>,
+    I: Iterator<Item = CnOrSite>,
+    O: Iterator<Item = CnOrSite>,
+    P: Iterator<Item = CnOrSite>,
 {
     let mut energy_diff_1000 = 0;
     for cn_from in cn_from_list {
-        energy_diff_1000 -= energy[cn_from];
-        energy_diff_1000 += energy[cn_from - 1];
+        match cn_from {
+            CnOrSite::Atom(change_cn) => {
+                energy_diff_1000 -= energy[change_cn.before];
+                energy_diff_1000 += energy[change_cn.after];
+            }
+            CnOrSite::Site(change_cn) => {
+                energy_diff_1000 -= energy_of_site(change_cn.before);
+                energy_diff_1000 += energy_of_site(change_cn.after);
+            }
+        }
     }
     for cn_to in cn_to_list {
-        energy_diff_1000 -= energy[cn_to];
-        energy_diff_1000 += energy[cn_to + 1];
+        match cn_to {
+            CnOrSite::Atom(change_cn) => {
+                energy_diff_1000 -= energy[change_cn.before];
+                energy_diff_1000 += energy[change_cn.after];
+            }
+            CnOrSite::Site(change_cn) => {
+                energy_diff_1000 -= energy_of_site(change_cn.before);
+                energy_diff_1000 += energy_of_site(change_cn.after);
+            }
+        }
     }
+    for cn_to in cn_intersect {
+        match cn_to {
+            CnOrSite::Atom(change_cn) => {
+                energy_diff_1000 -= energy[change_cn.before];
+                energy_diff_1000 += energy[change_cn.after];
+            }
+            CnOrSite::Site(change_cn) => {
+                energy_diff_1000 -= energy_of_site(change_cn.before);
+                energy_diff_1000 += energy_of_site(change_cn.after);
+            }
+        }
+    }
+
     energy_diff_1000 -= energy[move_from_cn];
     energy_diff_1000 += energy[move_to_cn - 1];
     energy_diff_1000 -= support_e * from_at_support as i64;
     energy_diff_1000 += support_e * to_at_support as i64;
+    energy_diff_1000 += energy_of_site(move_from_site);
+    energy_diff_1000 -= energy_of_site(move_to_site);
 
     energy_diff_1000
 }

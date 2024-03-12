@@ -6,7 +6,7 @@ pub struct GridStructure {
     pub nn: HashMap<u32, [u32; super::CN], fnv::FnvBuildHasher>,
     // pub nnn: HashMap<u32, [u32; super::GCN], fnv::FnvBuildHasher>,
     pub nn_pair_no_intersec:
-        HashMap<u64, [[u32; super::NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
+        HashMap<u64, read_and_write::NnPairNoIntersectInt, fnv::FnvBuildHasher>,
     pub nnn_pair_no_intersec: HashMap<
         u64,
         (
