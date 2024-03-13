@@ -708,13 +708,43 @@ impl Simulation {
     fn check_change(
         &self,
         atom: &u32,
+        move_from: u32,
+        move_to: u32,
         cn: usize,
         change_list_from: &[u32; 7],
         change_list_to: &[u32; 7],
         change: Option<i8>,
     ) -> Sites {
         if cn as i8 + change.unwrap_or(0) == 5 {
+            let mut check_neig = [0_u32; 13];
+            let mut count_ten = 0;
+            let mut count_seven = 0;
             for neighbor in self.gridstructure.nn[atom] {
+                if change.is_none() && neighbor == move_to {
+                    if self.cn_metal[move_to as usize] == 10 {
+                        count_ten += 1;
+                    }
+                    if self.cn_metal[move_to as usize] == 7 {
+                        count_seven += 1;
+                    }
+                    continue;
+                }
+                if neighbor == move_from {
+                    if let Some(change_val) = change {
+                        // if change_val == -1 || change_val == 0 {
+                        if self.cn_metal[move_from as usize] as i8 - 1 == 10 {
+                            count_ten += 1;
+                        }
+                        if self.cn_metal[move_from as usize] as i8 - 1 == 7 {
+                            count_seven += 1;
+                        }
+                        // }
+                    }
+                    continue;
+                }
+                if self.occ[neighbor as usize] != 1 {
+                    continue;
+                }
                 let mut corretion = 0;
                 if change.is_some() {
                     if change_list_from.contains(&neighbor) {
@@ -723,9 +753,23 @@ impl Simulation {
                         corretion = 1
                     }
                 }
+                // if let Some(nn_supp) = &self.nn_support {
+                //     if nn_supp[neighbor as usize] == 1 {
+                //         return Sites::None;
+                //     }
+                // }
+
+                check_neig[(self.cn_metal[neighbor as usize] as i8 + corretion) as usize] += 1;
                 if self.cn_metal[neighbor as usize] as i8 + corretion == 10 {
-                    return Sites::B5A;
+                    count_ten += 1;
                 }
+                if self.cn_metal[neighbor as usize] as i8 + corretion == 7 {
+                    count_seven += 1;
+                }
+            }
+            if count_seven == 2 && count_ten == 2 {
+                // println!("{:?}", check_neig);
+                return Sites::B5A;
             }
 
             Sites::None
@@ -739,6 +783,8 @@ impl Simulation {
     fn filter_map_energy_inter(
         &self,
         atom: &u32,
+        move_from: u32,
+        move_to: u32,
         change_list_from: &[u32; 7],
         change_list_to: &[u32; 7],
         change: i8,
@@ -747,6 +793,8 @@ impl Simulation {
             Some(CnOrSite::Site(ChangeCn {
                 before: self.check_change(
                     atom,
+                    move_from,
+                    move_to,
                     self.cn_metal[*atom as usize],
                     change_list_from,
                     change_list_to,
@@ -754,6 +802,8 @@ impl Simulation {
                 ),
                 after: self.check_change(
                     atom,
+                    move_from,
+                    move_to,
                     self.cn_metal[*atom as usize],
                     change_list_from,
                     change_list_to,
@@ -768,6 +818,8 @@ impl Simulation {
     fn filter_map_energy(
         &self,
         atom: &u32,
+        move_from: u32,
+        move_to: u32,
         change_list_from: &[u32; 7],
         change_list_to: &[u32; 7],
         change: i8,
@@ -783,6 +835,8 @@ impl Simulation {
             Some(CnOrSite::Site(ChangeCn {
                 before: self.check_change(
                     atom,
+                    move_from,
+                    move_to,
                     self.cn_metal[*atom as usize],
                     change_list_from,
                     change_list_to,
@@ -790,6 +844,8 @@ impl Simulation {
                 ),
                 after: self.check_change(
                     atom,
+                    move_from,
+                    move_to,
                     self.cn_metal[*atom as usize],
                     change_list_from,
                     change_list_to,
@@ -888,20 +944,43 @@ impl Simulation {
                 energy::energy_diff_cn(
                     energy_cn,
                     from_change.iter().filter_map(|atom| {
-                        self.filter_map_energy(atom, &from_change, &to_change, -1)
+                        self.filter_map_energy(
+                            atom,
+                            move_from,
+                            move_to,
+                            &from_change,
+                            &to_change,
+                            -1,
+                        )
                     }),
                     // .map(|x| self.cn_metal[*x as usize]),
                     to_change.iter().filter_map(|atom| {
-                        self.filter_map_energy(atom, &from_change, &to_change, 1)
+                        self.filter_map_energy(
+                            atom,
+                            move_from,
+                            move_to,
+                            &from_change,
+                            &to_change,
+                            1,
+                        )
                     }),
                     intersect.iter().filter_map(|atom| {
-                        self.filter_map_energy_inter(atom, &from_change, &to_change, 0)
+                        self.filter_map_energy_inter(
+                            atom,
+                            move_from,
+                            move_to,
+                            &from_change,
+                            &to_change,
+                            0,
+                        )
                     }),
                     // .map(|x| self.cn_metal[*x as usize]),
                     self.cn_metal[move_from as usize],
                     self.cn_metal[move_to as usize],
                     self.check_change(
                         &move_from,
+                        move_from,
+                        move_to,
                         self.cn_metal[move_from as usize],
                         &from_change,
                         &to_change,
@@ -909,6 +988,8 @@ impl Simulation {
                     ),
                     self.check_change(
                         &move_to,
+                        move_from,
+                        move_to,
                         self.cn_metal[move_to as usize],
                         &to_change,
                         &to_change,
