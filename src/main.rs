@@ -2,10 +2,14 @@ use clap::ArgGroup;
 use clap::Parser;
 use core::panic;
 use lazy_static::lazy_static;
+use mc::energy;
 use mc::energy::EnergyInput;
+use mc::energy::EnergyValues;
 use mc::GridStructure;
 use mc::Simulation;
+use std::collections::HashMap;
 use std::fs;
+use std::io::BufReader;
 use std::sync::Arc;
 use std::thread;
 use std::usize;
@@ -24,9 +28,37 @@ fn fmt_scient(num: &str) -> u64 {
         * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
 }
 
-fn collect_energy_values<const N: usize>(mut energy_vec: [i64; N], inp: String) -> [i64; N] {
+fn collect_energy_values<const N: usize>(
+    mut energy_vec: [i64; N],
+    inp: String,
+) -> EnergyValues<[i64; N]> {
     let contents = if inp.chars().next().unwrap().is_numeric() || inp.starts_with('-') {
         inp
+    } else if inp.ends_with(".json") {
+        let file = fs::File::open(inp).expect("can't find energy file");
+        let reader = BufReader::new(file);
+        // let res: Result<Results, serde_json::Error> = serde_json::from_reader(reader);
+        let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
+            serde_json::from_reader(reader);
+        let mut energy: [i64; N] = [0; N];
+        let mut CO_ads: [i64; N] = [0; N];
+        for (i, val) in res
+            .as_ref()
+            .unwrap()
+            .get("energy")
+            .unwrap()
+            .iter()
+            .enumerate()
+        {
+            energy[i] = *val;
+        }
+        for (i, val) in res.unwrap().get("CO_ads").unwrap().iter().enumerate() {
+            CO_ads[i] = *val;
+        }
+        return EnergyValues {
+            complet_energy: energy,
+            co_ads_energy: Some(CO_ads),
+        };
     } else {
         fs::read_to_string(inp).expect("can't find energy file")
     };
@@ -44,7 +76,10 @@ fn collect_energy_values<const N: usize>(mut energy_vec: [i64; N], inp: String) 
                 )
             });
     }
-    energy_vec
+    return EnergyValues {
+        complet_energy: energy_vec,
+        co_ads_energy: None,
+    };
 }
 
 #[derive(Parser, Debug)]

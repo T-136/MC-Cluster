@@ -35,7 +35,7 @@ const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [20, 20, 20];
+const GRID_SIZE: [u32; 3] = [30, 30, 30];
 
 const SAVE_ENTIRE_SIM: bool = true;
 
@@ -87,7 +87,7 @@ impl Simulation {
         //4
         //111: 12
         //hcp: 8
-        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 4;
+        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 12;
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
         let mut cn_dict_at_supp: [u32; CN + 1] = [0; CN + 1];
         let (occ, onlyocc, number_all_atoms, nn_support) = if input_file.is_some() {
@@ -148,6 +148,7 @@ impl Simulation {
             } else {
                 0
             };
+            let temp_total_e = total_energy_1000;
             match energy {
                 EnergyInput::LinearCn(_) | EnergyInput::Cn(_) => {
                     total_energy_1000 += energy::energy_1000_calculation(
@@ -167,6 +168,12 @@ impl Simulation {
                     );
                 }
             };
+            println!(
+                "at_supp: {} total_e: {} cn: {}",
+                at_support,
+                total_energy_1000 - temp_total_e,
+                cn_metal[*o as usize]
+            );
             // total_energy_1000 += energy::energy_1000_calculation(
             //     &energy,
             //     gcn_metal[*o as usize],
@@ -184,6 +191,7 @@ impl Simulation {
                 }
             }
         }
+        // panic!("nooo");
 
         let simulation_folder_name = match start_temperature {
             Some(start_temp) => {
@@ -714,9 +722,9 @@ impl Simulation {
             (0, 0)
         };
 
-        match self.energy {
+        match &self.energy {
             EnergyInput::LinearCn(energy_l_cn) => energy::energy_diff_l_cn(
-                energy_l_cn,
+                energy_l_cn.complet_energy,
                 self.cn_metal[move_from as usize],
                 self.cn_metal[move_to as usize] - 1,
                 from_at_support,
@@ -735,11 +743,28 @@ impl Simulation {
                     from_change
                         .iter()
                         .filter(|x| self.occ[**x as usize] == 1)
-                        .map(|x| self.cn_metal[*x as usize]),
+                        .map(|x| {
+                            (
+                                self.cn_metal[*x as usize],
+                                self.nn_support
+                                    .as_ref()
+                                    .and_then(|xx| Some(xx[*x as usize]))
+                                    .unwrap_or(0),
+                            )
+                        }),
                     to_change
                         .iter()
                         .filter(|x| self.occ[**x as usize] == 1)
-                        .map(|x| self.cn_metal[*x as usize]),
+                        .map(|x| {
+                            (
+                                self.cn_metal[*x as usize],
+                                self.nn_support
+                                    .as_ref()
+                                    .and_then(|xx| Some(xx[*x as usize]))
+                                    .unwrap_or(0),
+                            )
+                        }),
+                    // .map(|x| (self.cn_metal[*x as usize], self.nn_support[*x as usize])),
                     self.cn_metal[move_from as usize],
                     self.cn_metal[move_to as usize],
                     from_at_support,
@@ -754,7 +779,7 @@ impl Simulation {
                     &self.gridstructure.nn_pair_no_intersec,
                 );
                 energy::energy_diff_l_gcn(
-                    energy_l_gcn,
+                    energy_l_gcn.complet_energy,
                     from_change
                         .iter()
                         .filter(|x| self.occ[**x as usize] == 1)
@@ -810,14 +835,26 @@ impl Simulation {
                     to_change.iter().filter_map(|atom_and_neighbors| {
                         self.to_change_map(atom_and_neighbors, move_to, FromOrTo::To)
                     }),
-                    intersect
-                        .iter()
-                        .filter(|atom_and_neighbors| self.occ[atom_and_neighbors.0 as usize] == 1)
-                        .map(|atom_and_neighbors| {
-                            self.map_intersec(atom_and_neighbors, move_to, move_from, is_reverse)
-                        }),
+                    Some(
+                        intersect
+                            .iter()
+                            .filter(|atom_and_neighbors| {
+                                self.occ[atom_and_neighbors.0 as usize] == 1
+                            })
+                            .map(|atom_and_neighbors| {
+                                self.map_intersec(
+                                    atom_and_neighbors,
+                                    move_to,
+                                    move_from,
+                                    is_reverse,
+                                )
+                            }),
+                    ),
                     self.gcn_metal[move_from as usize],
                     self.gcn_metal[move_to as usize] - self.cn_metal[move_from as usize] + cn_from,
+                    from_at_support,
+                    to_at_support,
+                    // self.support_e,
                 )
             }
         }
