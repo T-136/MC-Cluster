@@ -1033,6 +1033,40 @@ impl Simulation {
             }
         }
     }
+
+    pub fn count_empty_sites(&self) {
+        let mut empty_sites = HashSet::new();
+        let mut empty_sites_distribution: HashMap<u32, u32> = HashMap::new();
+        for (atom, occupied) in self.occ.iter().enumerate() {
+            if occupied == &0 {
+                continue;
+            }
+            for neigbor in self.gridstructure.nn[&(atom as u32)].iter() {
+                if self.occ[*neigbor as usize] == 0 {
+                    empty_sites.insert(neigbor);
+                }
+            }
+        }
+        for site in empty_sites.into_iter() {
+            let mut neigbors_count = 0_u32;
+            for neighbor in self.gridstructure.nn[site] {
+                if self.occ[neighbor as usize] == 1 {
+                    neigbors_count += 1;
+                }
+            }
+            if neigbors_count == 5 {}
+            empty_sites_distribution
+                .entry(neigbors_count)
+                .and_modify(|counter| *counter += 1)
+                .or_insert(1);
+        }
+        let mut wtr = Writer::from_path(self.save_folder.clone() + "/empty_sites.csv").unwrap();
+        for (cn, count) in empty_sites_distribution {
+            wtr.write_record([cn.to_string(), count.to_string()])
+                .unwrap();
+        }
+        wtr.flush().unwrap();
+    }
 }
 fn no_int_nn_from_move(
     move_from: u32,
