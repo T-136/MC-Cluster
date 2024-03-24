@@ -10,8 +10,8 @@ pub struct LowestEnergy {
     pub energy: f64,
     #[serde(serialize_with = "ordered_map")]
     pub cn_total: HashMap<u8, u32>,
-    #[serde(serialize_with = "ordered_map")]
-    pub empty_cn: HashMap<u8, u32>,
+    // #[serde(serialize_with = "ordered_map")]
+    pub empty_cn: HashMap<String, u32>,
     #[serde(serialize_with = "ordered_map")]
     pub cn_dict_at_supp: HashMap<u8, u32>,
     pub iiter: u64,
