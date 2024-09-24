@@ -3,12 +3,12 @@ use fnv::FnvBuildHasher;
 use std::collections::{HashMap, HashSet};
 
 fn create_support(
+    atom_pos: &mut Vec<super::AtomPosition>,
     xsites_positions: &Vec<[f64; 3]>,
     support_indices: Vec<u32>,
-    occ: &mut Vec<u8>,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     iclose: u32,
-) -> Vec<u8> {
+) {
     let center_of_mass: &[f64; 3] = &xsites_positions[iclose as usize];
     let mut nn_support = vec![0_u8; xsites_positions.len()];
     let mut support = Vec::new();
@@ -19,13 +19,13 @@ fn create_support(
             norm += ((*x - center_of_mass[i2]) * support_indices[i2] as f64);
         }
         if norm.abs() < 1e-7 {
-            occ[i] = 2;
+            atom_pos[i].occ = 2;
             support.push(i as u32)
         };
     }
     let mut second_layer_fixpoint = 0;
     for neighbor in nn[&iclose] {
-        if occ[neighbor as usize] == 0 {
+        if atom_pos[neighbor as usize].occ == 0 {
             second_layer_fixpoint = neighbor;
         }
     }
@@ -36,28 +36,27 @@ fn create_support(
                 * support_indices[i2] as f64);
         }
         if norm.abs() < 1e-7 {
-            occ[i] = 2;
+            atom_pos[i].occ = 2;
             support.push(i as u32)
         };
     }
     for sup in support.iter() {
         for neighbor in nn[sup] {
-            if occ[neighbor as usize] != 2 {
-                nn_support[neighbor as usize] = 1;
+            if atom_pos[neighbor as usize].occ != 2 {
+                atom_pos[neighbor as usize].nn_support = 1;
             }
         }
     }
-    // panic!("fds");
-    nn_support
 }
 
 pub fn create_input_cluster(
+    atom_pos: &mut Vec<super::AtomPosition>,
     number_of_atoms: &u32,
     xsites_positions: &Vec<[f64; 3]>,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     nsites: u32,
     support_indices: Option<Vec<u32>>,
-) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>, Option<Vec<u8>>) {
+) -> HashSet<u32, FnvBuildHasher> {
     let center_of_mass: [f64; 3] = {
         let mut d: [Vec<f64>; 3] = [Vec::new(), Vec::new(), Vec::new()];
         for coord in xsites_positions {
@@ -92,21 +91,17 @@ pub fn create_input_cluster(
     );
     println!("nsites: {}", nsites);
     assert_eq!(xsites_positions.len(), nsites as usize);
-    let mut occ: Vec<u8> = Vec::with_capacity(xsites_positions.len());
     let mut onlyocc: HashSet<u32, FnvBuildHasher> =
         fnv::FnvHashSet::with_capacity_and_hasher(*number_of_atoms as usize, Default::default());
 
-    occ = vec![0_u8; nsites as usize];
-
-    let nn_support =
-        support_indices.map(|sup| create_support(xsites_positions, sup, &mut occ, nn, iclose));
+    support_indices.map(|sup| create_support(atom_pos, xsites_positions, sup, nn, iclose));
 
     // occ.entry(&iclose).and_modify(1) = 1;
-    if occ[iclose as usize] == 0 {
+    if atom_pos[iclose as usize].occ == 0 {
         onlyocc.insert(iclose);
     } else {
         for neighbor in nn[&iclose] {
-            if occ[neighbor as usize] == 0 {
+            if atom_pos[neighbor as usize].occ == 0 {
                 onlyocc.insert(neighbor);
                 break;
             }
@@ -122,7 +117,7 @@ pub fn create_input_cluster(
             for j in &nn[site] {
                 if !onlyocc_temp_storag.contains(&j)
                     && !onlyocc.contains(&j)
-                    && occ[*j as usize] == 0
+                    && atom_pos[*j as usize].occ == 0
                 {
                     onlyocc_temp_storag.insert(*j);
                     // onlyocc.insert(j);
@@ -145,17 +140,18 @@ pub fn create_input_cluster(
     }
 
     for site in onlyocc.iter() {
-        occ[*site as usize] = 1_u8;
+        atom_pos[*site as usize].occ = 1_u8;
     }
 
-    (occ, onlyocc, nn_support)
+    onlyocc
 }
 
 pub fn occ_onlyocc_from_xyz(
+    atom_pos: &mut Vec<super::AtomPosition>,
     xyz: &Vec<[f64; 3]>,
     nsites: u32,
     xsites_positions: &Vec<[f64; 3]>,
-) -> (Vec<u8>, HashSet<u32, FnvBuildHasher>) {
+) -> HashSet<u32, FnvBuildHasher> {
     let mut occ: Vec<u8> = Vec::with_capacity(nsites as usize);
     for _ in 0..nsites {
         occ.push(0 as u8);
@@ -169,7 +165,7 @@ pub fn occ_onlyocc_from_xyz(
                 + (x[1] - xsites_positions[site as usize][1]).powf(2.)
                 + (x[2] - xsites_positions[site as usize][2]).powf(2.);
             if dist < 0.15 {
-                occ[site as usize] = 1;
+                atom_pos[site as usize].occ = 1;
                 onlyocc.insert(site);
             }
         }
@@ -181,5 +177,5 @@ pub fn occ_onlyocc_from_xyz(
     //         }
     //     }
     // }
-    (occ, onlyocc)
+    onlyocc
 }

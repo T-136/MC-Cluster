@@ -14,7 +14,7 @@ pub fn write_occ_as_xyz(
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     xsites_positions: &Vec<[f64; 3]>,
     unit_cell: &[f64; 3],
-    occ: &Vec<u8>,
+    atom_pos: &Vec<super::AtomPosition>,
 ) {
     let mut trajectory = Trajectory::open(save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
     let mut xyz: Vec<[f64; 3]> = Vec::new();
@@ -27,8 +27,8 @@ pub fn write_occ_as_xyz(
     for atom in xyz.into_iter() {
         frame.add_atom(&Atom::new("Pt"), [atom[0], atom[1], atom[2]], None);
     }
-    for (i, atom) in occ.iter().enumerate() {
-        if atom == &2 {
+    for (i, atom) in atom_pos.iter().enumerate() {
+        if atom.occ == 2 {
             frame.add_atom(&Atom::new("Al"), xsites_positions[i], None);
         }
     }
@@ -201,7 +201,7 @@ pub fn read_nn_pair_no_intersec(
         for (i, l) in test.iter().skip(2).enumerate() {
             if i < 7 {
                 neighbors[0][i] = l.parse::<u32>().unwrap()
-            } else {
+            } else if i < 14 {
                 neighbors[1][i - 7] = l.parse::<u32>().unwrap()
             }
         }

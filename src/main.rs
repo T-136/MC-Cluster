@@ -12,7 +12,6 @@ use std::fs;
 use std::io::BufReader;
 use std::sync::Arc;
 use std::thread;
-use std::usize;
 
 fn fmt_scient(num: &str) -> u64 {
     let mut parts = num.split(['e', 'E']);
@@ -52,12 +51,17 @@ fn collect_energy_values<const N: usize>(
         {
             energy[i] = *val;
         }
-        for (i, val) in res.unwrap().get("CO_ads").unwrap().iter().enumerate() {
-            CO_ads[i] = *val;
-        }
+        let CO_ads_opt = if let Some(it) = res.unwrap().get("CO_ads") {
+            for (i, val) in it.iter().enumerate() {
+                CO_ads[i] = *val;
+            }
+            Some(CO_ads)
+        } else {
+            None
+        };
         return EnergyValues {
             complet_energy: energy,
-            co_ads_energy: Some(CO_ads),
+            co_ads_energy: CO_ads_opt,
         };
     } else {
         fs::read_to_string(inp).expect("can't find energy file")
