@@ -25,11 +25,8 @@ pub use grid_structure::GridStructure;
 pub use sim::Results;
 
 const CN: usize = 12;
-// const GCN: usize = 54;
-const GCN: usize = 145;
 const NN_PAIR_NUMBER: usize = 20;
 const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
-const NNN_PAIR_NO_INTERSEC_NUMBER: usize = 20;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
@@ -41,7 +38,6 @@ const SAVE_ENTIRE_SIM: bool = true;
 pub struct AtomPosition {
     occ: u8,
     cn_metal: usize,
-    gcn_metal: usize,
     nn_support: u8,
     nn: [u32; CN],
 }
@@ -173,15 +169,6 @@ impl Simulation {
                     total_energy_1000 += energy::energy_1000_calculation(
                         &energy,
                         atom_pos[*o as usize].cn_metal,
-                        atom_pos[*o as usize].nn_support,
-                        support_e,
-                    );
-                }
-
-                EnergyInput::LinearGcn(_) | EnergyInput::Gcn(_) => {
-                    total_energy_1000 += energy::energy_1000_calculation(
-                        &energy,
-                        gcn_metal[*o as usize],
                         atom_pos[*o as usize].nn_support,
                         support_e,
                     );
@@ -618,117 +605,6 @@ impl Simulation {
             self.atom_pos[o as usize].cn_metal += 1;
         }
 
-        match self.energy {
-            EnergyInput::LinearCn(_) | EnergyInput::Cn(_) => {}
-            EnergyInput::LinearGcn(_) | EnergyInput::Gcn(_) => {
-                let (from_change, to_change, intersect, is_reverse) = no_int_nnn_from_move(
-                    move_from,
-                    move_to,
-                    &self.gridstructure.nnn_pair_no_intersec,
-                );
-                let (from_change_nn, to_change_nn) = no_int_nn_from_move(
-                    move_from,
-                    move_to,
-                    &self.gridstructure.nn_pair_no_intersec,
-                );
-                for o in from_change_nn {
-                    if o == move_to {
-                        continue;
-                    }
-                    if self.atom_pos[o as usize].occ == 1 {
-                        self.atom_pos[move_from as usize].gcn_metal -= 1;
-                    }
-                }
-                self.atom_pos[move_from as usize].gcn_metal +=
-                    self.atom_pos[move_to as usize].cn_metal;
-                for o in to_change_nn {
-                    if o == move_from {
-                        continue;
-                    }
-                    if self.atom_pos[o as usize].occ == 1 {
-                        self.atom_pos[move_to as usize].gcn_metal += 1;
-                    }
-                }
-                self.atom_pos[move_to as usize].gcn_metal -=
-                    self.atom_pos[move_from as usize].cn_metal - 1;
-                for atom_and_neighbors in to_change {
-                    for n in atom_and_neighbors.iter().skip(1) {
-                        if n == &move_to {
-                            self.atom_pos[atom_and_neighbors[0] as usize].gcn_metal +=
-                                self.atom_pos[*n as usize].cn_metal;
-                            continue;
-                        }
-                        #[cfg(debug_assertions)]
-                        if n == &move_from {
-                            panic!(
-                                "found move from {:?}, move_from {}",
-                                atom_and_neighbors, move_from
-                            );
-                        }
-                        if self.atom_pos[*n as usize].occ == 1 {
-                            self.atom_pos[atom_and_neighbors[0] as usize].gcn_metal += 1;
-                        }
-                    }
-                }
-                for atom_and_neighbors in from_change {
-                    // println!("gcn bef{:?}", self.atom_pos.gcn_metal[*atom as usize]);
-                    for n in atom_and_neighbors.iter().skip(1) {
-                        #[cfg(debug_assertions)]
-                        if n == &move_to {
-                            panic!("found move to");
-                        }
-                        if n == &move_from {
-                            // println!("cn move from {:?}", self.atom_pos.cn_metal[*n as usize] - 1);
-                            self.atom_pos[atom_and_neighbors[0] as usize].gcn_metal -=
-                                self.atom_pos[*n as usize].cn_metal - 1;
-                            continue;
-                        }
-                        if self.atom_pos[*n as usize].occ == 1 {
-                            // println!("-1",);
-                            self.atom_pos[atom_and_neighbors[0] as usize].gcn_metal -= 1;
-                        }
-                    }
-                }
-                for (atom, first_neighbors, second_neighbors, to_from_atoms) in intersect {
-                    if !is_reverse {
-                        for n in first_neighbors {
-                            if self.atom_pos[*n as usize].occ == 1 {
-                                self.atom_pos[*atom as usize].gcn_metal -= 1;
-                            }
-                        }
-                        for n in second_neighbors {
-                            if self.atom_pos[*n as usize].occ == 1 {
-                                self.atom_pos[*atom as usize].gcn_metal += 1;
-                            }
-                        }
-                    } else if is_reverse {
-                        for n in second_neighbors {
-                            if self.atom_pos[*n as usize].occ == 1 {
-                                self.atom_pos[*atom as usize].gcn_metal -= 1;
-                            }
-                        }
-                        for n in first_neighbors {
-                            if self.atom_pos[*n as usize].occ == 1 {
-                                self.atom_pos[*atom as usize].gcn_metal += 1;
-                            }
-                        }
-                    }
-                    for n in to_from_atoms {
-                        if n == &move_to {
-                            self.atom_pos[*atom as usize].gcn_metal +=
-                                self.atom_pos[*n as usize].cn_metal;
-                            continue;
-                        }
-                        if n == &move_from {
-                            self.atom_pos[*atom as usize].gcn_metal -=
-                                self.atom_pos[*n as usize].cn_metal - 1;
-                            continue;
-                        }
-                        panic!("neither start nor end found");
-                    }
-                }
-            }
-        }
         if SAVE_ENTIRE_SIM || is_recording_sections {
             self.update_cn_dict(
                 move_to as usize,
@@ -806,187 +682,6 @@ impl Simulation {
                     self.support_e,
                 )
             }
-            EnergyInput::LinearGcn(energy_l_gcn) => {
-                let (from_change, to_change) = no_int_nn_from_move(
-                    move_from,
-                    move_to,
-                    &self.gridstructure.nn_pair_no_intersec,
-                );
-                energy::energy_diff_l_gcn(
-                    energy_l_gcn.complet_energy,
-                    from_change
-                        .iter()
-                        .filter(|x| self.atom_pos[**x as usize].occ == 1)
-                        .map(|x| {
-                            let mut gcn = 0;
-                            for o in self.atom_pos[*x as usize].nn {
-                                if self.atom_pos[o as usize].occ == 1 {
-                                    gcn += self.atom_pos[o as usize].cn_metal
-                                }
-                            }
-                            gcn
-                        }),
-                    to_change
-                        .iter()
-                        .filter(|x| self.atom_pos[**x as usize].occ == 1)
-                        .map(|x| {
-                            let mut gcn = 0;
-                            for o in self.atom_pos[*x as usize].nn {
-                                if self.atom_pos[o as usize].occ == 1 {
-                                    gcn += self.atom_pos[o as usize].cn_metal
-                                }
-                            }
-                            gcn
-                        }),
-                    self.atom_pos[move_from as usize].cn_metal,
-                    self.atom_pos[move_to as usize].cn_metal,
-                )
-            }
-            EnergyInput::Gcn(energy_gcn) => {
-                let (from_change, to_change, intersect, is_reverse) = no_int_nnn_from_move(
-                    move_from,
-                    move_to,
-                    &self.gridstructure.nnn_pair_no_intersec,
-                );
-
-                let (from_change_nn, to_change_nn) = no_int_nn_from_move(
-                    move_from,
-                    move_to,
-                    &self.gridstructure.nn_pair_no_intersec,
-                );
-
-                let mut cn_from = 0;
-                to_change_nn
-                    .iter()
-                    .filter(|x| self.atom_pos[**x as usize].occ == 1)
-                    .for_each(|_| cn_from += 1);
-
-                energy::energy_diff_gcn(
-                    energy_gcn,
-                    from_change
-                        .iter()
-                        .filter_map(|x| self.to_change_map(x, move_from, FromOrTo::From)),
-                    to_change.iter().filter_map(|atom_and_neighbors| {
-                        self.to_change_map(atom_and_neighbors, move_to, FromOrTo::To)
-                    }),
-                    Some(
-                        intersect
-                            .iter()
-                            .filter(|atom_and_neighbors| {
-                                self.atom_pos[atom_and_neighbors.0 as usize].occ == 1
-                            })
-                            .map(|atom_and_neighbors| {
-                                self.map_intersec(
-                                    atom_and_neighbors,
-                                    move_to,
-                                    move_from,
-                                    is_reverse,
-                                )
-                            }),
-                    ),
-                    self.atom_pos[move_from as usize].gcn_metal,
-                    self.atom_pos[move_to as usize].gcn_metal
-                        - self.atom_pos[move_from as usize].cn_metal
-                        + cn_from,
-                    from_at_support,
-                    to_at_support,
-                    // self.support_e,
-                )
-            }
-        }
-    }
-
-    fn map_intersec(
-        &self,
-        atom_and_neighbors: &(u32, Vec<u32>, Vec<u32>, Vec<u32>),
-        move_to: u32,
-        move_from: u32,
-        is_reverse: bool,
-    ) -> (usize, usize) {
-        let old_gcn = self.atom_pos[atom_and_neighbors.0 as usize].gcn_metal;
-        let mut new_gcn = self.atom_pos[atom_and_neighbors.0 as usize].gcn_metal;
-        let (atom, first_neighbors, second_neighbors, to_from_atoms) = atom_and_neighbors;
-        first_neighbors
-            .iter()
-            .filter(|atom| {
-                self.atom_pos[**atom as usize].occ == 1 || **atom == move_to || **atom == move_from
-            })
-            .for_each(|_| {
-                if !is_reverse {
-                    new_gcn -= 1
-                } else {
-                    new_gcn += 1
-                }
-            });
-        second_neighbors
-            .iter()
-            .filter(|atom| {
-                self.atom_pos[**atom as usize].occ == 1 || **atom == move_to || **atom == move_from
-            })
-            .for_each(|x| {
-                if is_reverse {
-                    new_gcn -= 1
-                } else if !is_reverse {
-                    new_gcn += 1
-                }
-            });
-        to_from_atoms
-            .iter()
-            .filter(|atom| {
-                self.atom_pos[**atom as usize].occ == 1 || **atom == move_to || **atom == move_from
-            })
-            .for_each(|x| {
-                if x == &move_to {
-                    new_gcn += self.atom_pos[*x as usize].cn_metal - 1
-                } else if x == &move_from {
-                    new_gcn -= self.atom_pos[*x as usize].cn_metal
-                }
-            });
-        (old_gcn, new_gcn)
-    }
-
-    fn to_change_map(
-        &self,
-        atom_and_neighbors: &Vec<u32>,
-        move_from_or_to: u32,
-        from_or_to: FromOrTo,
-        // move_to: u32,
-    ) -> Option<(usize, usize)> {
-        if self.atom_pos[*atom_and_neighbors.first().unwrap() as usize].occ == 1 {
-            let old_gcn = self.atom_pos[*atom_and_neighbors.first().unwrap() as usize].gcn_metal;
-            let mut new_gcn =
-                self.atom_pos[*atom_and_neighbors.first().unwrap() as usize].gcn_metal;
-            match from_or_to {
-                FromOrTo::From => {
-                    atom_and_neighbors
-                        .iter()
-                        .skip(1)
-                        .filter(|x| self.atom_pos[**x as usize].occ == 1 || **x == move_from_or_to)
-                        .for_each(|x| {
-                            if x == &move_from_or_to {
-                                new_gcn -= self.atom_pos[*x as usize].cn_metal
-                            } else {
-                                new_gcn -= 1
-                            }
-                        });
-                }
-                FromOrTo::To => {
-                    atom_and_neighbors
-                        .iter()
-                        .skip(1)
-                        .filter(|x| self.atom_pos[**x as usize].occ == 1 || **x == move_from_or_to)
-                        .for_each(|x| {
-                            if x == &move_from_or_to {
-                                new_gcn += self.atom_pos[*x as usize].cn_metal - 1
-                            } else {
-                                new_gcn += 1
-                            }
-                        });
-                }
-            }
-            Some((old_gcn, new_gcn))
-        } else {
-            None
         }
     }
 
@@ -1131,33 +826,6 @@ fn no_int_nn_from_move(
         (no_int[0], no_int[1])
     } else {
         (no_int[1], no_int[0])
-    }
-}
-
-fn no_int_nnn_from_move(
-    move_from: u32,
-    move_to: u32,
-    nnn_pair_no_intersec: &HashMap<
-        u64,
-        (
-            Vec<Vec<u32>>,
-            Vec<Vec<u32>>,
-            Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
-        ),
-        fnv::FnvBuildHasher,
-    >,
-) -> (
-    &Vec<Vec<u32>>,
-    &Vec<Vec<u32>>,
-    &Vec<(u32, Vec<u32>, Vec<u32>, Vec<u32>)>,
-    bool,
-) {
-    let (min, max, inter) = &nnn_pair_no_intersec[&(std::cmp::min(move_from, move_to) as u64
-        + ((std::cmp::max(move_to, move_from) as u64) << 32))];
-    if move_to > move_from {
-        (&min, &max, &inter, false)
-    } else {
-        (&max, &min, &inter, true)
     }
 }
 

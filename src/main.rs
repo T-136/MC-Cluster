@@ -106,7 +106,7 @@ struct StartStructure {
         ArgGroup::new("energy")
             .multiple(true)
             .required(true)
-            .args(&["e_l_cn", "e_cn", "e_l_gcn", "e_gcn"]),
+            .args(&["e_l_cn", "e_cn"]),
     ))]
 struct Args {
     #[clap(flatten)]
@@ -135,12 +135,6 @@ struct Args {
     #[arg(long, allow_hyphen_values(true))]
     e_cn: Option<String>,
 
-    #[arg(long, allow_hyphen_values(true))]
-    e_l_gcn: Option<String>,
-
-    #[arg(long, allow_hyphen_values(true))]
-    e_gcn: Option<String>,
-
     #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
     repetition: Vec<usize>,
 
@@ -163,15 +157,13 @@ struct Args {
     unique_levels: i32,
 }
 
-fn file_paths(grid_folder: String) -> (String, String, String, String, String, String, String) {
+fn file_paths(grid_folder: String) -> (String, String, String, String, String) {
     (
         format!("{}/nearest_neighbor", grid_folder),
         format!("{}/next_nearest_neighbor", grid_folder),
         format!("{}/nn_pairlist", grid_folder),
-        format!("{}/nnn_pairlist", grid_folder),
         format!("{}/atom_sites", grid_folder),
         format!("{}/nn_pair_no_intersec", grid_folder),
-        format!("{}/nnn_gcn_no_intersec.json", grid_folder),
     )
 }
 
@@ -216,10 +208,8 @@ fn main() {
     static ref pairlist_file: String = grid_folder.clone() + "/nearest_neighbor";
     static ref n_pairlist_file: String = grid_folder.clone() + "/next_nearest_neighbor";
     static ref nn_pairlist_file: String = grid_folder.clone() + "/nn_pairlist";
-    static ref nnn_pairlist_file: String = grid_folder.clone() + "/nnn_pairlist";
     static ref atom_sites: String = grid_folder.clone() + "/atom_sites";
     static ref nn_pair_no_int_file: String = grid_folder.clone() + "/nn_pair_no_intersec";
-    static ref nnn_pair_no_int_file: String = grid_folder.clone() + "/nnn_gcn_no_intersec.json";
     static ref bulk_file_name: String = Args::parse().core_file;
     }
 
@@ -238,10 +228,6 @@ fn main() {
         EnergyInput::LinearCn(collect_energy_values([0; 2], args.e_l_cn.unwrap()))
     } else if args.e_cn.is_some() {
         EnergyInput::Cn(collect_energy_values([0; 13], args.e_cn.unwrap()))
-    } else if args.e_l_gcn.is_some() {
-        EnergyInput::LinearGcn(collect_energy_values([0; 2], args.e_l_gcn.unwrap()))
-    } else if args.e_gcn.is_some() {
-        EnergyInput::Gcn(collect_energy_values([0; 145], args.e_gcn.unwrap()))
     } else {
         panic!("no energy")
     };
@@ -255,7 +241,6 @@ fn main() {
             &pairlist_file,
             // &n_pairlist_file,
             &nn_pair_no_int_file,
-            &nnn_pair_no_int_file,
             &atom_sites,
             &bulk_file_name,
         );
