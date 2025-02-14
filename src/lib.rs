@@ -149,16 +149,6 @@ impl Simulation {
                 cn_dict[atom_pos[o as usize].cn_metal] += 1;
             };
         }
-        let mut gcn_metal: Vec<usize> = Vec::with_capacity(nsites as usize);
-        for o in 0..nsites {
-            let mut gcn: usize = 0;
-            for o1 in gridstructure.nn[&o].iter() {
-                if atom_pos[*o1 as usize].occ == 1 {
-                    gcn += atom_pos[*o1 as usize].cn_metal;
-                }
-            }
-            gcn_metal.push(gcn);
-        }
 
         let mut total_energy_1000: i64 = 0;
         let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
@@ -180,12 +170,6 @@ impl Simulation {
                 total_energy_1000 - temp_total_e,
                 atom_pos[*o as usize].cn_metal
             );
-            // total_energy_1000 += energy::energy_1000_calculation(
-            //     &energy,
-            //     gcn_metal[*o as usize],
-            //     at_support,
-            //     support_e,
-            // );
 
             for u in &gridstructure.nn[o] {
                 if atom_pos[*u as usize].occ == 0 {
@@ -246,11 +230,7 @@ impl Simulation {
             atom_pos,
             niter,
             number_all_atoms,
-            // occ,
             onlyocc,
-            // cn_metal,
-            // gcn_metal,
-            // nn_support,
             possible_moves,
             total_energy_1000,
             cn_dict,
