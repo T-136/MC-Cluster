@@ -63,7 +63,7 @@ pub struct Simulation {
     snap_shot_sections: Option<Vec<Vec<u8>>>,
     heat_map_sections: Vec<Vec<u64>>,
     energy: EnergyInput,
-    gridstructure: &'static GridStructure,
+    gridstructure: Arc<GridStructure>,
     support_e: i64,
     is_supported: bool,
 }
@@ -91,7 +91,7 @@ impl Simulation {
         optimization_cut_off_fraction: Vec<u64>,
         energy: EnergyInput,
         support_indices: Option<Vec<u32>>,
-        gridstructure: &'static GridStructure,
+        gridstructure: Arc<GridStructure>,
         support_e: i64,
     ) -> Simulation {
         //4

@@ -12,15 +12,17 @@ pub struct GridStructure {
 
 impl GridStructure {
     pub fn new(
-        pairlist_file: &'static str,
-        // n_pairlist_file: &'static str,
-        nn_pair_no_int_file: &'static str,
-        atom_sites: &'static str,
-        bulk_file_name: &'static str,
+        (
+            pairlist_file,
+            // n_pairlist_file: String,
+            nn_pair_no_int_file,
+            atom_sites,
+            bulk_file_name,
+        ): (String, String, String, String),
     ) -> GridStructure {
         let nsites: u32 = super::GRID_SIZE[0] * super::GRID_SIZE[1] * super::GRID_SIZE[2] * 4;
-        let nn = read_and_write::read_nn(pairlist_file);
-        let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(nn_pair_no_int_file);
+        let nn = read_and_write::read_nn(&pairlist_file);
+        let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(&nn_pair_no_int_file);
 
         let bulk = Poscar::from_path(bulk_file_name).unwrap_or_else(|err| {
             panic!(

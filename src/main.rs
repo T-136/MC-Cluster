@@ -1,7 +1,6 @@
 use clap::ArgGroup;
 use clap::Parser;
 use core::panic;
-use lazy_static::lazy_static;
 use mc::energy;
 use mc::energy::EnergyInput;
 use mc::energy::EnergyValues;
@@ -157,13 +156,14 @@ struct Args {
     unique_levels: i32,
 }
 
-fn file_paths(grid_folder: String) -> (String, String, String, String, String) {
+fn file_paths(grid_folder: String) -> (String, String, String, String) {
     (
         format!("{}/nearest_neighbor", grid_folder),
-        format!("{}/next_nearest_neighbor", grid_folder),
-        format!("{}/nn_pairlist", grid_folder),
-        format!("{}/atom_sites", grid_folder),
         format!("{}/nn_pair_no_intersec", grid_folder),
+        // format!("{}/next_nearest_neighbor", grid_folder),
+        // format!("{}/nn_pairlist", grid_folder),
+        format!("{}/atom_sites", grid_folder),
+        format!("{}/grid_file.xyz", grid_folder),
     )
 }
 
@@ -200,18 +200,7 @@ fn main() {
 
     let input_file: Option<String> = args.start_structure.start_cluster;
 
-    lazy_static! {
-
-    static ref grid_folder: String = Args::parse().grid_folder;
-
-    // static ref pairlist_file: String = format!("{}/nearest_neighbor", grid_folder);
-    static ref pairlist_file: String = grid_folder.clone() + "/nearest_neighbor";
-    static ref n_pairlist_file: String = grid_folder.clone() + "/next_nearest_neighbor";
-    static ref nn_pairlist_file: String = grid_folder.clone() + "/nn_pairlist";
-    static ref atom_sites: String = grid_folder.clone() + "/atom_sites";
-    static ref nn_pair_no_int_file: String = grid_folder.clone() + "/nn_pair_no_intersec";
-    static ref bulk_file_name: String = Args::parse().core_file;
-    }
+    let grid_folder: String = Args::parse().grid_folder;
 
     let niter_str = args.iterations;
     let niter = fmt_scient(&niter_str);
@@ -236,27 +225,16 @@ fn main() {
     println!("{:?}", repetition);
 
     let mut handle_vec = Vec::new();
-    lazy_static! {
-        static ref gridstructure: GridStructure = GridStructure::new(
-            &pairlist_file,
-            // &n_pairlist_file,
-            &nn_pair_no_int_file,
-            &atom_sites,
-            &bulk_file_name,
-        );
-    }
+    let gridstructure: GridStructure = GridStructure::new(file_paths(grid_folder));
 
-    // lazy_static! {
-    //     static ref gridstructure_stat: GridStructure = gridstructure;
-    // }
-    // let gridstructure = Arc::new(gridstructure);
+    let gridstructure = Arc::new(gridstructure);
 
     for rep in repetition[0]..repetition[1] {
         let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let optimization_cut_off_fraction = optimization_cut_off_fraction.clone();
         let energy = energy.clone();
-        // let gridstructure_arc = Arc::clone(&gridstructure);
+        let gridstructure_arc = Arc::clone(&gridstructure);
         let support_indices = support_indices.clone();
 
         handle_vec.push(thread::spawn(move || {
@@ -273,7 +251,7 @@ fn main() {
                 optimization_cut_off_fraction,
                 energy,
                 support_indices,
-                &gridstructure,
+                gridstructure_arc,
                 support_e,
             );
             let exp = sim.run(unique_levels);
