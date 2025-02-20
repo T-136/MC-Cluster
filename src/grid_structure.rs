@@ -7,7 +7,7 @@ pub struct GridStructure {
     pub nn_pair_no_intersec:
         HashMap<u64, [[u32; super::NN_PAIR_NO_INTERSEC_NUMBER]; 2], fnv::FnvBuildHasher>,
     pub xsites_positions: Vec<[f64; 3]>,
-    pub unit_cell: [f64; 3],
+    // pub unit_cell: [f64; 3],
 }
 
 impl GridStructure {
@@ -20,7 +20,6 @@ impl GridStructure {
             bulk_file_name,
         ): (String, String, String, String),
     ) -> GridStructure {
-        let nsites: u32 = super::GRID_SIZE[0] * super::GRID_SIZE[1] * super::GRID_SIZE[2] * 4;
         let nn = read_and_write::read_nn(&pairlist_file);
         let nn_pair_no_intersec = read_and_write::read_nn_pair_no_intersec(&nn_pair_no_int_file);
 
@@ -32,19 +31,19 @@ impl GridStructure {
             )
         });
         let unit_cell_size = bulk.unscaled_lattice_vectors();
-        let unit_cell = [
-            unit_cell_size[0][0] * super::GRID_SIZE[0] as f64,
-            unit_cell_size[1][1] * super::GRID_SIZE[1] as f64,
-            unit_cell_size[2][2] * super::GRID_SIZE[2] as f64,
-        ];
+        // let unit_cell = [
+        //     unit_cell_size[0][0] * super::GRID_SIZE[0] as f64,
+        //     unit_cell_size[1][1] * super::GRID_SIZE[1] as f64,
+        //     unit_cell_size[2][2] * super::GRID_SIZE[2] as f64,
+        // ];
 
-        let xsites_positions = read_and_write::read_atom_sites(&atom_sites, nsites);
+        let xsites_positions = read_and_write::read_atom_sites(&atom_sites, nn.len() as u32);
 
         GridStructure {
             nn,
             nn_pair_no_intersec,
             xsites_positions,
-            unit_cell,
+            // unit_cell,
         }
     }
 }

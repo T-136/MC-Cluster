@@ -97,7 +97,7 @@ impl Simulation {
         //4
         //111: 12
         //hcp: 8
-        let nsites: u32 = GRID_SIZE[0] * GRID_SIZE[1] * GRID_SIZE[2] * 12;
+        let nsites = gridstructure.xsites_positions.len() as u32;
         let mut atom_pos: Vec<AtomPosition> = vec![AtomPosition::default(); nsites as usize];
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
         let mut cn_dict_at_supp: [u32; CN + 1] = [0; CN + 1];
@@ -151,7 +151,7 @@ impl Simulation {
         }
 
         let mut total_energy_1000: i64 = 0;
-        let mut possible_moves: listdict::ListDict = listdict::ListDict::new(GRID_SIZE);
+        let mut possible_moves: listdict::ListDict = listdict::ListDict::new(nsites);
         for o in onlyocc.iter() {
             let temp_total_e = total_energy_1000;
             match energy {
@@ -369,7 +369,7 @@ impl Simulation {
             self.save_folder.clone(),
             lowest_e_onlyocc,
             &self.gridstructure.xsites_positions,
-            &self.gridstructure.unit_cell,
+            // &self.gridstructure.unit_cell,
             &self.atom_pos,
         );
 

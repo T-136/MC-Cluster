@@ -12,14 +12,13 @@ pub struct ListDict {
 }
 
 impl ListDict {
-    pub fn new(grid_size: [u32; 3]) -> ListDict {
-        let largest_atom_position = grid_size[0] * grid_size[1] * grid_size[2] * 4;
+    pub fn new(nsites: u32) -> ListDict {
         let item_to_position: HashMap<u64, usize, ahash::RandomState> = HashMap::default();
         // let item_to_position: HashMap<u64, usize, fnv::FnvBuildHasher> =
         //     fnv::FnvHashMap::with_capacity_and_hasher(32000, Default::default());
         ListDict {
             move_to_position: item_to_position,
-            moves: Vec::with_capacity((largest_atom_position * 3) as usize),
+            moves: Vec::with_capacity((nsites * 3) as usize),
             total_energy_change: None,
         }
     }
