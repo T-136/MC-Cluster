@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize, Serializer};
 use serde_with::serde_as;
-// use std::collections::HashMap;
 use std::collections::{BTreeMap, HashMap};
 
 // const KB: f64 = 8.6173324e-5;
@@ -58,8 +57,6 @@ pub struct Results {
     pub number_all_atoms: u32,
     pub energy_section_list: Vec<f64>,
     pub cn_dict_sections: Vec<HashMap<u8, f64>>,
-    #[serde_as(as = "Vec<(_, _)>")]
-    pub unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
 }
 
 fn ordered_map<S>(value: &HashMap<u8, u32>, serializer: S) -> Result<S::Ok, S::Error>

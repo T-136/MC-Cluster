@@ -13,7 +13,7 @@ pub fn write_occ_as_xyz(
     save_folder: String,
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
     xsites_positions: &Vec<[f64; 3]>,
-    // unit_cell: &[f64; 3],
+    unit_cell: &[f64; 3],
     atom_pos: &Vec<super::AtomPosition>,
 ) {
     let mut trajectory = Trajectory::open(save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
@@ -22,7 +22,7 @@ pub fn write_occ_as_xyz(
         xyz.insert(j, xsites_positions[*ii as usize]);
     }
     let mut frame = Frame::new();
-    // frame.set_cell(&UnitCell::new(unit_cell.clone()));
+    frame.set_cell(&UnitCell::new(unit_cell.clone()));
 
     for atom in xyz.into_iter() {
         frame.add_atom(&Atom::new("Pt"), [atom[0], atom[1], atom[2]], None);

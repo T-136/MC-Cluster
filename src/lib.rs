@@ -1,18 +1,16 @@
 use anyhow;
-use core::panic;
 use csv::Writer;
 use energy::EnergyInput;
 use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
-use std::collections::hash_map::Entry;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::sync::Arc;
-use std::{cmp, eprint, fs, println, usize};
+use std::{fs, println, usize};
 
 pub mod energy;
 mod grid_structure;
@@ -30,8 +28,6 @@ const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
 
-const GRID_SIZE: [u32; 3] = [20, 20, 20];
-
 const SAVE_ENTIRE_SIM: bool = true;
 
 #[derive(Clone, Default)]
@@ -40,6 +36,12 @@ pub struct AtomPosition {
     cn_metal: usize,
     nn_support: u8,
     nn: [u32; CN],
+}
+
+#[derive(Clone, Default)]
+pub struct Support {
+    pub support_e: i64,
+    pub support_atom: u8,
 }
 
 #[derive(Clone)]
@@ -58,14 +60,13 @@ pub struct Simulation {
     cn_dict_sections: Vec<HashMap<u8, f64>>,
     energy_sections_list: Vec<f64>,
     optimization_cut_off_fraction: Vec<u64>,
-    unique_levels: HashMap<BTreeMap<u8, u32>, (i64, u64)>,
     heat_map: Option<Vec<u64>>,
     snap_shot_sections: Option<Vec<Vec<u8>>>,
     heat_map_sections: Vec<Vec<u64>>,
     energy: EnergyInput,
     gridstructure: Arc<GridStructure>,
+    // support: Option<Support>,
     support_e: i64,
-    is_supported: bool,
 }
 
 fn copy_nn_in_atoms_pos(
@@ -80,8 +81,7 @@ fn copy_nn_in_atoms_pos(
 impl Simulation {
     pub fn new(
         niter: u64,
-        input_file: Option<String>,
-        atoms_input: Option<u32>,
+        structure: Structure,
         temperature: f64,
         start_temperature: Option<f64>,
         save_folder_name: String,
@@ -90,7 +90,6 @@ impl Simulation {
         repetition: usize,
         optimization_cut_off_fraction: Vec<u64>,
         energy: EnergyInput,
-        support_indices: Option<Vec<u32>>,
         gridstructure: Arc<GridStructure>,
         support_e: i64,
     ) -> Simulation {
@@ -101,34 +100,31 @@ impl Simulation {
         let mut atom_pos: Vec<AtomPosition> = vec![AtomPosition::default(); nsites as usize];
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
         let mut cn_dict_at_supp: [u32; CN + 1] = [0; CN + 1];
-        let is_supported = if support_indices.is_some() {
-            true
-        } else {
-            false
-        };
-        let (onlyocc, number_all_atoms) = if input_file.is_some() {
-            let xyz = read_and_write::read_sample(&input_file.unwrap());
-            let onlyocc = setup::occ_onlyocc_from_xyz(
-                &mut atom_pos,
-                &xyz,
-                nsites,
-                &gridstructure.xsites_positions,
-            );
-            let number_of_atoms: u32 = onlyocc.len() as u32;
-            (onlyocc, number_of_atoms)
-        } else if atoms_input.is_some() {
-            let number_of_atom = atoms_input.unwrap();
-            let onlyocc = setup::create_input_cluster(
-                &mut atom_pos,
-                &atoms_input.unwrap(),
-                &gridstructure.xsites_positions,
-                &gridstructure.nn,
-                nsites,
-                support_indices,
-            );
-            (onlyocc, number_of_atom)
-        } else {
-            panic!("gib input atoms or input file");
+        let (onlyocc, number_all_atoms) = match structure {
+            Structure::StartStructure(input_file) => {
+                let xyz = read_and_write::read_sample(&input_file);
+                let onlyocc = setup::occ_onlyocc_from_xyz(
+                    &mut atom_pos,
+                    &xyz,
+                    nsites,
+                    &gridstructure.xsites_positions,
+                );
+                let number_of_atoms: u32 = onlyocc.len() as u32;
+                (onlyocc, number_of_atoms)
+            }
+            Structure::CreateCluster(cluster) => {
+                let number_of_atom = cluster.atom_count;
+                let onlyocc = setup::create_input_cluster(
+                    &mut atom_pos,
+                    &number_of_atom,
+                    &gridstructure.xsites_positions,
+                    &gridstructure.nn,
+                    nsites,
+                    // support.as_ref(),
+                    cluster.support_vector.as_ref(),
+                );
+                (onlyocc, number_of_atom)
+            }
         };
 
         for o in 0..nsites {
@@ -141,7 +137,7 @@ impl Simulation {
             }
             atom_pos[o as usize].cn_metal = neighbors as usize;
             if atom_pos[o as usize].occ == 1 {
-                if is_supported {
+                if support_e != 0 {
                     if atom_pos[o as usize].nn_support == 1 {
                         cn_dict_at_supp[atom_pos[o as usize].cn_metal] += 1;
                     }
@@ -209,7 +205,6 @@ impl Simulation {
 
         let cn_dict_sections = Vec::with_capacity(AMOUNT_SECTIONS);
         let energy_sections_list = Vec::with_capacity(AMOUNT_SECTIONS);
-        let unique_levels = HashMap::new();
 
         let snap_shot_sections: Option<Vec<Vec<u8>>> = if write_snap_shots {
             Some(Vec::new())
@@ -241,18 +236,18 @@ impl Simulation {
             cn_dict_sections,
             energy_sections_list,
             optimization_cut_off_fraction,
-            unique_levels,
             snap_shot_sections,
             heat_map,
             heat_map_sections,
             energy,
             gridstructure,
+            // support,
             support_e,
-            is_supported,
+            // is_supported,
         }
     }
 
-    pub fn run(&mut self, mut amount_unique_levels: i32) -> Results {
+    pub fn run(&mut self) -> Results {
         let mut rng_choose = SmallRng::from_entropy();
 
         let cut_off_perc = self.optimization_cut_off_fraction[0] as f64
@@ -357,7 +352,6 @@ impl Simulation {
                     &iiter,
                     temp_energy_section,
                     &mut temp_cn_dict_section,
-                    &mut amount_unique_levels,
                     section_size,
                 );
             }
@@ -369,7 +363,7 @@ impl Simulation {
             self.save_folder.clone(),
             lowest_e_onlyocc,
             &self.gridstructure.xsites_positions,
-            // &self.gridstructure.unit_cell,
+            &self.gridstructure.unit_cell,
             &self.atom_pos,
         );
 
@@ -400,7 +394,7 @@ impl Simulation {
             number_all_atoms: self.number_all_atoms,
             energy_section_list: self.energy_sections_list.clone(),
             cn_dict_sections: self.cn_dict_sections.clone(),
-            unique_levels: self.unique_levels.clone(),
+            // unique_levels: self.unique_levels.clone(),
         }
     }
 
@@ -415,7 +409,6 @@ impl Simulation {
         iiter: &u64,
         mut temp_energy_section_1000: i64,
         temp_cn_dict_section: &mut [u64; CN + 1],
-        amount_unique_levels: &mut i32,
         section_size: u64,
     ) -> i64 {
         if (iiter + 1) % SAVE_TH == 0 {
@@ -427,31 +420,31 @@ impl Simulation {
                 .for_each(|(i, v)| *v += self.cn_dict[i] as u64);
         }
 
-        if *amount_unique_levels != 0 {
-            let mut cn_hash_map = HashMap::new();
-            for (i, v) in self.cn_dict.into_iter().enumerate() {
-                cn_hash_map.insert(i as u8, v);
-            }
-
-            if *iiter * self.optimization_cut_off_fraction[1]
-                >= self.niter * self.optimization_cut_off_fraction[0]
-            {
-                let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
-                match self.unique_levels.entry(cn_btree) {
-                    Entry::Occupied(mut entry) => {
-                        let (_, x) = entry.get_mut();
-                        *x += 1;
-                    }
-                    Entry::Vacant(entry) => {
-                        if *amount_unique_levels == 1 {
-                            eprint!("amount_unique_levels reached");
-                        }
-                        *amount_unique_levels -= 1;
-                        entry.insert((self.total_energy_1000 / 1000, 1));
-                    }
-                }
-            }
-        }
+        // if *amount_unique_levels != 0 {
+        //     let mut cn_hash_map = HashMap::new();
+        //     for (i, v) in self.cn_dict.into_iter().enumerate() {
+        //         cn_hash_map.insert(i as u8, v);
+        //     }
+        //
+        //     if *iiter * self.optimization_cut_off_fraction[1]
+        //         >= self.niter * self.optimization_cut_off_fraction[0]
+        //     {
+        //         let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
+        //         match self.unique_levels.entry(cn_btree) {
+        //             Entry::Occupied(mut entry) => {
+        //                 let (_, x) = entry.get_mut();
+        //                 *x += 1;
+        //             }
+        //             Entry::Vacant(entry) => {
+        //                 if *amount_unique_levels == 1 {
+        //                     eprint!("amount_unique_levels reached");
+        //                 }
+        //                 *amount_unique_levels -= 1;
+        //                 entry.insert((self.total_energy_1000 / 1000, 1));
+        //             }
+        //         }
+        //     }
+        // }
         if (iiter + 1) % section_size == 0 {
             self.energy_sections_list
                 .push(temp_energy_section_1000 as f64 / (section_size / SAVE_TH) as f64 / 1000.);
@@ -598,12 +591,12 @@ impl Simulation {
     }
 
     fn energy_change_by_move(&self, move_from: u32, move_to: u32) -> i64 {
-        let (from_at_support, to_at_support) = if self.is_supported {
+        let (from_at_support, to_at_support, support_e) = if self.support_e != 0 {
             let from_at_support = self.atom_pos[move_from as usize].nn_support;
             let to_at_support = self.atom_pos[move_to as usize].nn_support;
-            (from_at_support, to_at_support)
+            (from_at_support, to_at_support, self.support_e)
         } else {
-            (0, 0)
+            (0, 0, 0)
         };
 
         match &self.energy {
@@ -613,7 +606,7 @@ impl Simulation {
                 self.atom_pos[move_to as usize].cn_metal - 1,
                 from_at_support,
                 to_at_support,
-                self.support_e,
+                support_e,
             ),
             EnergyInput::Cn(energy_cn) => {
                 let (from_change, to_change) = no_int_nn_from_move(
@@ -634,13 +627,6 @@ impl Simulation {
                             None
                         }
                     }),
-                    // .filter(|x| self.atom_pos[**x as usize].occ == 1)
-                    // .map(|x| {
-                    //     (
-                    //         self.atom_pos[*x as usize].cn_metal,
-                    //         self.atom_pos[*x as usize].nn_support,
-                    //     )
-                    // }),
                     to_change
                         .iter()
                         // .filter(|x| self.atom_pos[**x as usize].occ == 1)
@@ -659,7 +645,7 @@ impl Simulation {
                     self.atom_pos[move_to as usize].cn_metal,
                     from_at_support,
                     to_at_support,
-                    self.support_e,
+                    support_e,
                 )
             }
         }
@@ -728,19 +714,19 @@ impl Simulation {
     fn update_cn_dict(&mut self, atom: usize, cn: usize, change_is_positiv: bool) {
         match change_is_positiv {
             true => {
-                if self.is_supported {
-                    if self.atom_pos[atom].nn_support == 1 {
-                        self.cn_dict_at_supp[cn] += 1;
-                    }
+                // if self.support.is_some() {
+                if self.atom_pos[atom].nn_support == 1 {
+                    self.cn_dict_at_supp[cn] += 1;
                 }
+                // }
                 self.cn_dict[cn] += 1;
             }
             false => {
-                if self.is_supported {
-                    if self.atom_pos[atom].nn_support == 1 {
-                        self.cn_dict_at_supp[cn] -= 1;
-                    }
+                // if self.support.is_some() {
+                if self.atom_pos[atom].nn_support == 1 {
+                    self.cn_dict_at_supp[cn] -= 1;
                 }
+                // }
                 self.cn_dict[cn] -= 1;
             }
         }
@@ -871,6 +857,20 @@ pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> 
     }
 
     Ok(())
+}
+
+#[derive(Clone)]
+pub enum Structure {
+    StartStructure(String),
+    CreateCluster(CreateStructure),
+}
+
+#[derive(Clone, Default)]
+pub struct CreateStructure {
+    pub atom_name: String,
+    pub atom_count: u32,
+    pub support_vector: Option<Vec<i32>>,
+    pub support_atom_name: Option<String>,
 }
 
 enum FromOrTo {

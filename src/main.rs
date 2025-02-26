@@ -1,16 +1,28 @@
 use clap::ArgGroup;
 use clap::Parser;
+use clap::ValueEnum;
 use core::panic;
 use mc::energy;
 use mc::energy::EnergyInput;
 use mc::energy::EnergyValues;
+use mc::CreateStructure;
 use mc::GridStructure;
 use mc::Simulation;
+use mc::Structure;
 use std::collections::HashMap;
 use std::fs;
 use std::io::BufReader;
 use std::sync::Arc;
 use std::thread;
+
+fn prepend<T>(v: Vec<T>, s: &[T]) -> Vec<T>
+where
+    T: Clone,
+{
+    let mut tmp: Vec<_> = s.to_owned();
+    tmp.extend(v);
+    tmp
+}
 
 fn fmt_scient(num: &str) -> u64 {
     let mut parts = num.split(['e', 'E']);
@@ -85,18 +97,34 @@ fn collect_energy_values<const N: usize>(
     };
 }
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(group(
         ArgGroup::new("startstructure")
             .required(true)
-            .args(&["start_cluster", "atoms_input"]),
+            .multiple(true)
+            .args(&["start_cluster", "atoms", "support"]),
     ))]
 struct StartStructure {
-    #[arg(short, long)]
+    #[arg(short, long, group = "mode", conflicts_with_all = ["atoms", "support"])]
     start_cluster: Option<String>,
 
-    #[arg(short, long, value_delimiter = ',')]
-    atoms_input: Option<Vec<u32>>,
+    #[command(flatten)]
+    create_cluster: Option<Createcluster>,
+}
+
+#[derive(Parser, Debug, Clone)]
+#[clap(group(
+        ArgGroup::new("createcluster")
+            .multiple(true)
+            .args(&["atoms", "support"]),
+    ))]
+struct Createcluster {
+    /// Atom name and number of that atom seperated by a comma. "Pt,4000"
+    #[arg(short, long, value_delimiter = ',', allow_hyphen_values(true))]
+    atoms: Vec<String>,
+
+    #[arg(short, long, value_delimiter = ',', allow_hyphen_values(true))]
+    support: Option<Vec<String>>,
 }
 
 #[derive(Parser, Debug)]
@@ -108,7 +136,7 @@ struct StartStructure {
             .args(&["e_l_cn", "e_cn"]),
     ))]
 struct Args {
-    #[clap(flatten)]
+    #[command(flatten)]
     start_structure: StartStructure,
 
     /// folder to store results
@@ -151,9 +179,6 @@ struct Args {
 
     #[arg(short, long, value_delimiter = '/', default_values_t = vec!(1,2))]
     optimization_cut_off_fraction: Vec<u64>,
-
-    #[arg(short, long, allow_hyphen_values = true)]
-    unique_levels: i32,
 }
 
 fn file_paths(grid_folder: String) -> (String, String, String, String) {
@@ -167,13 +192,32 @@ fn file_paths(grid_folder: String) -> (String, String, String, String) {
     )
 }
 
-fn unpack_atoms_input(atoms: Vec<u32>) -> (Option<u32>, Option<Vec<u32>>) {
-    if atoms.len() == 1 {
-        return (Some(atoms[0]), None);
-    } else if atoms.len() == 4 {
-        return (Some(atoms[0]), Some(vec![atoms[1], atoms[2], atoms[3]]));
+fn unpack_atoms_input(atoms: Vec<String>) -> (String, u32) {
+    return (
+        atoms[0].clone(),
+        atoms[1].parse().expect("bad number of atoms"),
+    );
+}
+
+fn unpack_support_input(atoms_opt: Option<Vec<String>>) -> (Option<String>, Option<Vec<i32>>) {
+    if let Some(atoms) = atoms_opt {
+        if atoms.len() == 1 {
+            return (Some(atoms[0].clone()), None);
+        } else if atoms.len() == 4 {
+            return (
+                Some(atoms[0].clone()),
+                Some(vec![
+                    atoms[1].parse::<i32>().expect("wrong support vector"),
+                    atoms[2].parse::<i32>().expect("wrong support vector"),
+                    atoms[3].parse::<i32>().expect("wrong support vector"),
+                ]),
+            );
+        } else {
+            panic!("wrong support input")
+            // panic!("wrong support input, use one of the two input options: \n number of atoms: '-a x' \n or number of atoms with miller indices: '-a x h k l' ")
+        }
     } else {
-        panic!("wrong atoms input, user one of the two input options: \n number of atoms: '-a x' \n or number of atoms with miller indices: '-a x h k l' ")
+        (None, None)
     }
 }
 
@@ -185,20 +229,27 @@ fn main() {
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
     let start_temperature: Option<f64> = args.begin_temperature;
-    let unique_levels = args.unique_levels;
     if !std::path::Path::new(&save_folder).exists() {
         fs::create_dir_all(&save_folder).unwrap();
     }
 
-    // let (atoms_input, sup) =
-    let (atoms_input, support_indices) = if let Some(atoms_input) = args.start_structure.atoms_input
-    {
-        unpack_atoms_input(atoms_input)
+    let start_structure = if let Some(start_cluster) = args.start_structure.start_cluster {
+        Structure::StartStructure(start_cluster)
+    } else if let Some(create_cluster) = args.start_structure.create_cluster {
+        let (supp_atom_name, support_indices) = unpack_support_input(create_cluster.support);
+        let (atom_name, atom_count) = unpack_atoms_input(create_cluster.atoms);
+
+        Structure::CreateCluster(CreateStructure {
+            atom_name,
+            atom_count,
+            support_vector: support_indices,
+            support_atom_name: supp_atom_name,
+        })
     } else {
-        (None, None)
+        panic!("either file path to start structure or vlaues for creating a cluster are required");
     };
 
-    let input_file: Option<String> = args.start_structure.start_cluster;
+    let support_e = args.support_e.unwrap_or(0);
 
     let grid_folder: String = Args::parse().grid_folder;
 
@@ -211,7 +262,12 @@ fn main() {
     }
     let optimization_cut_off_fraction: Vec<u64> = args.optimization_cut_off_fraction;
     let repetition = args.repetition;
-    let support_e = args.support_e.unwrap_or(0);
+
+    let repetition = if repetition.len() == 1 {
+        prepend(repetition, &[0])
+    } else {
+        repetition
+    };
 
     let energy = if args.e_l_cn.is_some() {
         EnergyInput::LinearCn(collect_energy_values([0; 2], args.e_l_cn.unwrap()))
@@ -230,18 +286,17 @@ fn main() {
     let gridstructure = Arc::new(gridstructure);
 
     for rep in repetition[0]..repetition[1] {
-        let input_file = input_file.clone();
+        // let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let optimization_cut_off_fraction = optimization_cut_off_fraction.clone();
         let energy = energy.clone();
         let gridstructure_arc = Arc::clone(&gridstructure);
-        let support_indices = support_indices.clone();
+        let start_structure = start_structure.clone();
 
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
                 niter,
-                input_file,
-                atoms_input,
+                start_structure,
                 temperature,
                 start_temperature,
                 save_folder,
@@ -250,11 +305,10 @@ fn main() {
                 rep,
                 optimization_cut_off_fraction,
                 energy,
-                support_indices,
                 gridstructure_arc,
                 support_e,
             );
-            let exp = sim.run(unique_levels);
+            let exp = sim.run();
             sim.write_exp_file(&exp);
             sim.count_empty_sites()
         }));
