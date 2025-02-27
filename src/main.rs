@@ -1,8 +1,6 @@
 use clap::ArgGroup;
 use clap::Parser;
-use clap::ValueEnum;
 use core::panic;
-use mc::energy;
 use mc::energy::EnergyInput;
 use mc::energy::EnergyValues;
 use mc::CreateStructure;
@@ -139,46 +137,57 @@ struct Args {
     #[command(flatten)]
     start_structure: StartStructure,
 
-    /// folder to store results
+    /// Output folder
     #[arg(short, long, default_value_t = String::from("./sim/"))]
     folder: String,
 
-    /// iterations
+    /// Determines the length of the simulation
     #[arg(short, long)]
     iterations: String,
 
-    #[arg(short, long, default_value_t = 300.)]
-    temperature: f64,
-
+    /// Temperature where the annealing process starts
     #[arg(short, long)]
     begin_temperature: Option<f64>,
 
+    /// Temperature at which the annealing process stops
+    #[arg(short, long, default_value_t = 300.)]
+    temperature: f64,
+
+    /// Fraction of the simulation after which the annealing process is completed. After that, the
+    /// temperature remains constant.
+    #[arg(short, long, value_delimiter = '/', default_values_t = vec!(1,2))]
+    optimization_cut_off_fraction: Vec<u64>,
+
+    /// Support energy
     #[arg(long, allow_hyphen_values(true))]
     support_e: Option<i64>,
 
+    /// File path or string containing a JSON-formatted list of energies
     #[arg(long, allow_hyphen_values(true))]
     e_l_cn: Option<String>,
 
+    /// File path or string containing JSON-formatted energies
     #[arg(long, allow_hyphen_values(true))]
     e_cn: Option<String>,
 
+    /// How many times the same simulation is run. Multiple runs allow for convergence tests.
+    /// The number will be part of the simulation folder name. After running `-r 0-1`, you can run `-r 1-2`
+    /// and the previous simulation will not be overwritten.
     #[arg(short, long, value_delimiter = '-', default_values_t = vec!(0,1))]
     repetition: Vec<usize>,
 
-    #[arg(short, long, default_value_t = String::from("../999-pair"))]
+    /// Folder containing the setup files like neighbor sites. It can be created using the Python
+    /// script `create_sites.py`.
+    #[arg(short, long, default_value_t = String::from("../303030-pair"))]
     grid_folder: String,
 
-    #[arg(short, long, default_value_t = String::from("../input_cluster/bulk.poscar"))]
-    core_file: String,
-
+    /// Track the simulation by taking snapshots of the cluster throughout the simulation
     #[arg(short, long, default_value_t = false)]
     write_snap_shots: bool,
 
+    /// Generate a heat map
     #[arg(long, default_value_t = false)]
     heat_map: bool,
-
-    #[arg(short, long, value_delimiter = '/', default_values_t = vec!(1,2))]
-    optimization_cut_off_fraction: Vec<u64>,
 }
 
 fn file_paths(grid_folder: String) -> (String, String, String, String) {
