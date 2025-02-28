@@ -5,8 +5,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs;
 use std::io::{self, BufRead};
-use time_graph::instrument;
-use vasp_poscar::Poscar;
 
 pub fn write_occ_as_xyz(
     // trajectory: &mut Trajectory,
@@ -36,22 +34,6 @@ pub fn write_occ_as_xyz(
     trajectory
         .write(&frame)
         .unwrap_or_else(|x| eprintln!("{}", x));
-}
-
-#[instrument]
-pub fn read_sample(input_file: &str) -> Vec<[f64; 3]> {
-    if input_file.contains(".poscar") {
-        let newatoms = Poscar::from_path(input_file).unwrap();
-        let xyz = newatoms.scaled_cart_positions();
-        xyz.into_owned()
-    } else if input_file.contains(".xyz") {
-        let mut trajectory = Trajectory::open(input_file, 'r').unwrap();
-        let mut frame = Frame::new();
-        trajectory.read(&mut frame).unwrap();
-        frame.positions().to_owned()
-    } else {
-        panic!("no .poscar or .xyz, cant read file");
-    }
 }
 
 fn fmt_scient(num: &str) -> f64 {

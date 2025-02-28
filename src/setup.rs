@@ -1,5 +1,6 @@
 use fnv::FnvBuildHasher;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 fn create_support(
     atom_pos: &mut Vec<super::AtomPosition>,
@@ -141,9 +142,10 @@ pub fn create_input_cluster(
 
 pub fn occ_onlyocc_from_xyz(
     atom_pos: &mut Vec<super::AtomPosition>,
-    xyz: &Vec<[f64; 3]>,
+    xyz: Arc<Vec<(String, [f64; 3])>>,
     nsites: u32,
     xsites_positions: &Vec<[f64; 3]>,
+    atom_names: super::AtomNames,
 ) -> HashSet<u32, FnvBuildHasher> {
     let mut occ: Vec<u8> = Vec::with_capacity(nsites as usize);
     for _ in 0..nsites {
@@ -154,12 +156,18 @@ pub fn occ_onlyocc_from_xyz(
 
     for x in xyz.iter() {
         for site in 0..nsites {
-            let dist = (x[0] - xsites_positions[site as usize][0]).powf(2.)
-                + (x[1] - xsites_positions[site as usize][1]).powf(2.)
-                + (x[2] - xsites_positions[site as usize][2]).powf(2.);
+            let dist = (x.1[0] - xsites_positions[site as usize][0]).powf(2.)
+                + (x.1[1] - xsites_positions[site as usize][1]).powf(2.)
+                + (x.1[2] - xsites_positions[site as usize][2]).powf(2.);
             if dist < 0.15 {
-                atom_pos[site as usize].occ = 1;
-                onlyocc.insert(site);
+                if &x.0 == atom_names.atom.as_ref().unwrap() {
+                    atom_pos[site as usize].occ = 1;
+                    onlyocc.insert(site);
+                } else if let Some(supp) = atom_names.support.as_ref() {
+                    if supp == &x.0 {
+                        atom_pos[site as usize].occ = 2;
+                    }
+                }
             }
         }
     }

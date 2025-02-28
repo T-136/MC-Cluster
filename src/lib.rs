@@ -30,6 +30,12 @@ const SAVE_TH: u64 = 1000;
 
 const SAVE_ENTIRE_SIM: bool = true;
 
+#[derive(Clone, Default, Debug)]
+pub struct AtomNames {
+    pub atom: Option<String>,
+    pub support: Option<String>,
+}
+
 #[derive(Clone, Default)]
 pub struct AtomPosition {
     occ: u8,
@@ -80,6 +86,7 @@ fn copy_nn_in_atoms_pos(
 
 impl Simulation {
     pub fn new(
+        atom_names: AtomNames,
         niter: u64,
         structure: Structure,
         temperature: f64,
@@ -93,21 +100,18 @@ impl Simulation {
         gridstructure: Arc<GridStructure>,
         support_e: i64,
     ) -> Simulation {
-        //4
-        //111: 12
-        //hcp: 8
         let nsites = gridstructure.xsites_positions.len() as u32;
         let mut atom_pos: Vec<AtomPosition> = vec![AtomPosition::default(); nsites as usize];
         let mut cn_dict: [u32; CN + 1] = [0; CN + 1];
         let mut cn_dict_at_supp: [u32; CN + 1] = [0; CN + 1];
         let (onlyocc, number_all_atoms) = match structure {
-            Structure::StartStructure(input_file) => {
-                let xyz = read_and_write::read_sample(&input_file);
+            Structure::StartStructure(xyz) => {
                 let onlyocc = setup::occ_onlyocc_from_xyz(
                     &mut atom_pos,
-                    &xyz,
+                    xyz,
                     nsites,
                     &gridstructure.xsites_positions,
+                    atom_names,
                 );
                 let number_of_atoms: u32 = onlyocc.len() as u32;
                 (onlyocc, number_of_atoms)
@@ -861,7 +865,7 @@ pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> 
 
 #[derive(Clone)]
 pub enum Structure {
-    StartStructure(String),
+    StartStructure(Arc<Vec<(String, [f64; 3])>>),
     CreateCluster(CreateStructure),
 }
 

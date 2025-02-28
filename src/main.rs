@@ -1,3 +1,4 @@
+use chemfiles::{Frame, Trajectory};
 use clap::ArgGroup;
 use clap::Parser;
 use core::panic;
@@ -12,6 +13,45 @@ use std::fs;
 use std::io::BufReader;
 use std::sync::Arc;
 use std::thread;
+use vasp_poscar::Poscar;
+
+fn atoms_input(atom_name: &str, atom_names: &mut mc::AtomNames) {
+    if let Some(supp) = atom_names.support.as_ref() {
+        if atom_name == supp {
+            return;
+        }
+    }
+    if atom_names.atom.is_none() {
+        atom_names.atom = Some(atom_name.to_string());
+    } else if let Some(atom) = atom_names.atom.as_ref() {
+        if atom != atom_name {
+            panic!("to many atoms in input file");
+        }
+    }
+}
+
+fn read_sample(input_file: &str, atom_names: &mut mc::AtomNames) -> Vec<(String, [f64; 3])> {
+    if input_file.contains(".poscar") {
+        todo!();
+        let newatoms = Poscar::from_path(input_file).unwrap();
+        // println!("poscar naem {:?}", newatoms.group_symbols().unwrap().next());
+        // let xyz = newatoms.scaled_cart_positions();
+        // xyz.into_owned()
+    } else if input_file.contains(".xyz") {
+        let mut trajectory = Trajectory::open(input_file, 'r').unwrap();
+        let mut frame = Frame::new();
+        trajectory.read(&mut frame).unwrap();
+        let mut atom_vec: Vec<(String, [f64; 3])> = Vec::new();
+        let positions = frame.positions().to_owned();
+        for (i, atom) in frame.iter_atoms().enumerate() {
+            atoms_input(&atom.name(), atom_names);
+            atom_vec.push((atom.name().clone(), positions[i]));
+        }
+        atom_vec
+    } else {
+        panic!("no .poscar or .xyz, cant read file");
+    }
+}
 
 fn prepend<T>(v: Vec<T>, s: &[T]) -> Vec<T>
 where
@@ -37,58 +77,65 @@ fn fmt_scient(num: &str) -> u64 {
 }
 
 fn collect_energy_values<const N: usize>(
+    // input_atom: &str,
+    // support_atom: &str,
+    atom_names: &mc::AtomNames,
     mut energy_vec: [i64; N],
     inp: String,
 ) -> EnergyValues<[i64; N]> {
-    let contents = if inp.chars().next().unwrap().is_numeric() || inp.starts_with('-') {
-        inp
+    let json = if inp.chars().next().unwrap().is_numeric() || inp.starts_with('-') {
+        let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
+            serde_json::from_str(&inp);
+        res
     } else if inp.ends_with(".json") {
         let file = fs::File::open(inp).expect("can't find energy file");
         let reader = BufReader::new(file);
         // let res: Result<Results, serde_json::Error> = serde_json::from_reader(reader);
         let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
             serde_json::from_reader(reader);
-        let mut energy: [i64; N] = [0; N];
-        let mut CO_ads: [i64; N] = [0; N];
-        for (i, val) in res
-            .as_ref()
-            .unwrap()
-            .get("energy")
-            .unwrap()
-            .iter()
-            .enumerate()
-        {
-            energy[i] = *val;
-        }
-        let CO_ads_opt = if let Some(it) = res.unwrap().get("CO_ads") {
-            for (i, val) in it.iter().enumerate() {
-                CO_ads[i] = *val;
-            }
-            Some(CO_ads)
-        } else {
-            None
-        };
-        return EnergyValues {
-            complet_energy: energy,
-            co_ads_energy: CO_ads_opt,
-        };
+        res
     } else {
-        fs::read_to_string(inp).expect("can't find energy file")
+        panic!("energy input is neither JSON nor a file path");
+        // fs::read_to_string(inp).expect("can't find energy file")
     };
-    let mut string_iter = contents.trim().split(',');
-    for x in energy_vec.iter_mut() {
-        *x = string_iter
-            .next()
-            .unwrap()
-            .trim()
-            .parse::<i64>()
-            .unwrap_or_else(|err| {
-                panic!(
-                    "iter received from input file: {:?}, err: {}",
-                    string_iter, err
-                )
-            });
+    let mut energy: [i64; N] = [0; N];
+    let mut CO_ads: [i64; N] = [0; N];
+    for (i, val) in json
+        .as_ref()
+        .unwrap()
+        .get("CN_energy")
+        .unwrap()
+        .iter()
+        .enumerate()
+    {
+        energy[i] = *val;
     }
+    let CO_ads_opt = if let Some(it) = json.unwrap().get("ads_e_CO") {
+        for (i, val) in it.iter().enumerate() {
+            CO_ads[i] = *val;
+        }
+        Some(CO_ads)
+    } else {
+        None
+    };
+    return EnergyValues {
+        complet_energy: energy,
+        co_ads_energy: CO_ads_opt,
+    };
+    // let mut string_iter = contents.trim().split(',');
+    // for x in energy_vec.iter_mut() {
+    //     *x = string_iter
+    //         .next()
+    //         .unwrap()
+    //         .trim()
+    //         .parse::<i64>()
+    //         .unwrap_or_else(|err| {
+    //             panic!(
+    //                 "iter received from input file: {:?}, err: {}",
+    //                 string_iter, err
+    //             )
+    //         });
+    // }
     return EnergyValues {
         complet_energy: energy_vec,
         co_ads_energy: None,
@@ -103,27 +150,33 @@ fn collect_energy_values<const N: usize>(
             .args(&["start_cluster", "atoms", "support"]),
     ))]
 struct StartStructure {
-    #[arg(short, long, group = "mode", conflicts_with_all = ["atoms", "support"])]
+    #[arg(short, long, group = "mode", conflicts_with_all = ["atoms"])]
     start_cluster: Option<String>,
 
-    #[command(flatten)]
-    create_cluster: Option<Createcluster>,
-}
-
-#[derive(Parser, Debug, Clone)]
-#[clap(group(
-        ArgGroup::new("createcluster")
-            .multiple(true)
-            .args(&["atoms", "support"]),
-    ))]
-struct Createcluster {
     /// Atom name and number of that atom seperated by a comma. "Pt,4000"
     #[arg(short, long, value_delimiter = ',', allow_hyphen_values(true))]
-    atoms: Vec<String>,
+    atoms: Option<Vec<String>>,
 
+    /// When creating a new particle using the atoms flag, write the Atom name and a vector orthogonal to the support
+    /// surface Al,1,1,1. When starting fro a xyz file only the support atom is required.
     #[arg(short, long, value_delimiter = ',', allow_hyphen_values(true))]
     support: Option<Vec<String>>,
 }
+
+// #[derive(Parser, Debug, Clone)]
+// #[clap(group(
+//         ArgGroup::new("createcluster")
+//             .multiple(true)
+//             .args(&["atoms", "support"]),
+//     ))]
+// struct Createcluster {
+//     /// Atom name and number of that atom seperated by a comma. "Pt,4000"
+//     #[arg(short, long, value_delimiter = ',', allow_hyphen_values(true))]
+//     atoms: Vec<String>,
+//
+//     #[arg(short, long, value_delimiter = ',', allow_hyphen_values(true))]
+//     support: Option<Vec<String>>,
+// }
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -234,6 +287,7 @@ fn main() {
     // enable_data_collection(true);
     println!("determined next-nearest neighbor list");
 
+    let mut atom_names = mc::AtomNames::default();
     let args = Args::parse();
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
@@ -242,11 +296,17 @@ fn main() {
         fs::create_dir_all(&save_folder).unwrap();
     }
 
+    if let Some(supp_atom) = args.start_structure.support.clone() {
+        atom_names.support = Some(supp_atom[0].clone());
+    }
     let start_structure = if let Some(start_cluster) = args.start_structure.start_cluster {
-        Structure::StartStructure(start_cluster)
-    } else if let Some(create_cluster) = args.start_structure.create_cluster {
-        let (supp_atom_name, support_indices) = unpack_support_input(create_cluster.support);
-        let (atom_name, atom_count) = unpack_atoms_input(create_cluster.atoms);
+        let xyz = read_sample(&start_cluster, &mut atom_names);
+        Structure::StartStructure(Arc::new(xyz))
+    } else if let Some(atoms) = args.start_structure.atoms {
+        let (supp_atom_name, support_indices) = unpack_support_input(args.start_structure.support);
+        let (atom_name, atom_count) = unpack_atoms_input(atoms);
+        atom_names.atom = Some(atom_name.clone());
+        atom_names.support = supp_atom_name.clone();
 
         Structure::CreateCluster(CreateStructure {
             atom_name,
@@ -257,6 +317,7 @@ fn main() {
     } else {
         panic!("either file path to start structure or vlaues for creating a cluster are required");
     };
+    println!("atom_names {:?}", atom_names);
 
     let support_e = args.support_e.unwrap_or(0);
 
@@ -279,9 +340,17 @@ fn main() {
     };
 
     let energy = if args.e_l_cn.is_some() {
-        EnergyInput::LinearCn(collect_energy_values([0; 2], args.e_l_cn.unwrap()))
+        EnergyInput::LinearCn(collect_energy_values(
+            &atom_names,
+            [0; 2],
+            args.e_l_cn.unwrap(),
+        ))
     } else if args.e_cn.is_some() {
-        EnergyInput::Cn(collect_energy_values([0; 13], args.e_cn.unwrap()))
+        EnergyInput::Cn(collect_energy_values(
+            &atom_names,
+            [0; 13],
+            args.e_cn.unwrap(),
+        ))
     } else {
         panic!("no energy")
     };
@@ -301,9 +370,11 @@ fn main() {
         let energy = energy.clone();
         let gridstructure_arc = Arc::clone(&gridstructure);
         let start_structure = start_structure.clone();
+        let atom_names = atom_names.clone();
 
         handle_vec.push(thread::spawn(move || {
             let mut sim = Simulation::new(
+                atom_names,
                 niter,
                 start_structure,
                 temperature,
