@@ -7,6 +7,7 @@ use std::fs;
 use std::io::{self, BufRead};
 
 pub fn write_occ_as_xyz(
+    atom_names: &super::AtomNames,
     // trajectory: &mut Trajectory,
     save_folder: String,
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
@@ -23,11 +24,19 @@ pub fn write_occ_as_xyz(
     frame.set_cell(&UnitCell::new(unit_cell.clone()));
 
     for atom in xyz.into_iter() {
-        frame.add_atom(&Atom::new("Pt"), [atom[0], atom[1], atom[2]], None);
+        frame.add_atom(
+            &Atom::new(atom_names.atom.as_ref().unwrap().as_str()),
+            [atom[0], atom[1], atom[2]],
+            None,
+        );
     }
     for (i, atom) in atom_pos.iter().enumerate() {
         if atom.occ == 2 {
-            frame.add_atom(&Atom::new("Al"), xsites_positions[i], None);
+            frame.add_atom(
+                &Atom::new(atom_names.support.as_ref().unwrap().as_str()),
+                xsites_positions[i],
+                None,
+            );
         }
     }
 

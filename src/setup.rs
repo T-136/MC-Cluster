@@ -145,7 +145,7 @@ pub fn occ_onlyocc_from_xyz(
     xyz: Arc<Vec<(String, [f64; 3])>>,
     nsites: u32,
     xsites_positions: &Vec<[f64; 3]>,
-    atom_names: super::AtomNames,
+    atom_names: &super::AtomNames,
 ) -> HashSet<u32, FnvBuildHasher> {
     let mut occ: Vec<u8> = Vec::with_capacity(nsites as usize);
     for _ in 0..nsites {

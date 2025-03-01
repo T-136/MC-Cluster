@@ -199,8 +199,8 @@ struct Args {
     iterations: String,
 
     /// Temperature where the annealing process starts
-    #[arg(short, long)]
-    begin_temperature: Option<f64>,
+    #[arg(short, long, default_value_t = 5000.)]
+    begin_temperature: f64,
 
     /// Temperature at which the annealing process stops
     #[arg(short, long, default_value_t = 300.)]
@@ -291,7 +291,7 @@ fn main() {
     let args = Args::parse();
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
-    let start_temperature: Option<f64> = args.begin_temperature;
+    let start_temperature: f64 = args.begin_temperature;
     if !std::path::Path::new(&save_folder).exists() {
         fs::create_dir_all(&save_folder).unwrap();
     }

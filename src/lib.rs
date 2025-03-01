@@ -52,6 +52,7 @@ pub struct Support {
 
 #[derive(Clone)]
 pub struct Simulation {
+    atom_names: AtomNames,
     atom_pos: Vec<AtomPosition>,
     niter: u64,
     number_all_atoms: u32,
@@ -61,7 +62,7 @@ pub struct Simulation {
     cn_dict: [u32; CN + 1],
     cn_dict_at_supp: [u32; CN + 1],
     save_folder: String,
-    start_temperature: Option<f64>,
+    start_temperature: f64,
     temperature: f64,
     cn_dict_sections: Vec<HashMap<u8, f64>>,
     energy_sections_list: Vec<f64>,
@@ -90,7 +91,7 @@ impl Simulation {
         niter: u64,
         structure: Structure,
         temperature: f64,
-        start_temperature: Option<f64>,
+        start_temperature: f64,
         save_folder_name: String,
         write_snap_shots: bool,
         is_heat_map: bool,
@@ -111,7 +112,7 @@ impl Simulation {
                     xyz,
                     nsites,
                     &gridstructure.xsites_positions,
-                    atom_names,
+                    &atom_names,
                 );
                 let number_of_atoms: u32 = onlyocc.len() as u32;
                 (onlyocc, number_of_atoms)
@@ -182,19 +183,26 @@ impl Simulation {
             }
         }
         // panic!("nooo");
+        let simulation_folder_name = std::format!(
+            "{}-{}K_{:E}I_{}A",
+            start_temperature,
+            temperature,
+            niter,
+            onlyocc.len()
+        );
 
-        let simulation_folder_name = match start_temperature {
-            Some(start_temp) => {
-                std::format!(
-                    "{}-{}K_{}I_{}A",
-                    start_temp,
-                    temperature,
-                    niter,
-                    onlyocc.len()
-                )
-            }
-            None => std::format!("{}K_{}I_{}A", temperature, niter, onlyocc.len()),
-        };
+        // let simulation_folder_name = match start_temperature {
+        //     Some(start_temp) => {
+        //         std::format!(
+        //             "{}-{}K_{:E}I_{}A",
+        //             start_temp,
+        //             temperature,
+        //             niter,
+        //             onlyocc.len()
+        //         )
+        //     }
+        //     None => std::format!("{}K_{:E}I_{}A", temperature, niter, onlyocc.len()),
+        // };
 
         let mut sub_folder = save_folder_name + &simulation_folder_name;
 
@@ -226,6 +234,7 @@ impl Simulation {
 
         copy_nn_in_atoms_pos(&mut atom_pos, &gridstructure.nn);
         Simulation {
+            atom_names,
             atom_pos,
             niter,
             number_all_atoms,
@@ -364,6 +373,7 @@ impl Simulation {
         println!("heatmap section len: {:?}", self.heat_map_sections.len());
 
         read_and_write::write_occ_as_xyz(
+            &self.atom_names,
             self.save_folder.clone(),
             lowest_e_onlyocc,
             &self.gridstructure.xsites_positions,
@@ -374,19 +384,33 @@ impl Simulation {
         if self.heat_map.is_some() {
             let mut wtr = Writer::from_path(self.save_folder.clone() + "/heat_map.csv").unwrap();
             for heat_section in &self.heat_map_sections {
-                wtr.write_record(heat_section.iter().map(|x| x.to_string()))
-                    .unwrap();
+                wtr.write_record(heat_section.iter().map(|x| {
+                    if x == &1 {
+                        self.atom_names.atom.clone().unwrap()
+                    } else {
+                        self.atom_names.support.clone().unwrap()
+                    }
+                }))
+                .unwrap();
             }
             wtr.flush().unwrap();
         }
 
         if self.snap_shot_sections.is_some() {
             let mut wtr =
-                Writer::from_path(self.save_folder.clone() + "/snap_shot_sections.csv").unwrap();
+                Writer::from_path(self.save_folder.clone() + "/snapshot_sections.csv").unwrap();
             if let Some(snap_shot_sections) = &self.snap_shot_sections {
                 for heat_section in snap_shot_sections {
-                    wtr.write_record(heat_section.iter().map(|x| x.to_string()))
-                        .unwrap();
+                    wtr.write_record(heat_section.iter().map(|x| {
+                        if x == &1 {
+                            self.atom_names.atom.clone().unwrap()
+                        } else if x == &2 {
+                            self.atom_names.support.clone().unwrap()
+                        } else {
+                            x.to_string()
+                        }
+                    }))
+                    .unwrap();
                 }
             }
             wtr.flush().unwrap();
@@ -495,27 +519,27 @@ impl Simulation {
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
-        let heating_temp = 5000.;
-        if self.start_temperature.is_some() {
-            if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
-                heating_temp
-                    - ((iiter + 1) as f64 / (self.niter as f64 * cut_off_perc))
-                        * (heating_temp - self.start_temperature.unwrap())
-            } else {
-                self.start_temperature.unwrap()
-                    - ((iiter + 1) as f64 - self.niter as f64 * cut_off_perc)
-                        / (self.niter as f64 * (1. - cut_off_perc))
-                        * (self.start_temperature.unwrap() - self.temperature)
-            }
+        let heating_temp = self.start_temperature;
+        // if self.start_temperature.is_some() {
+        //     if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
+        //         heating_temp
+        //             - ((iiter + 1) as f64 / (self.niter as f64 * cut_off_perc))
+        //                 * (heating_temp - self.start_temperature.unwrap())
+        //     } else {
+        //         self.start_temperature.unwrap()
+        //             - ((iiter + 1) as f64 - self.niter as f64 * cut_off_perc)
+        //                 / (self.niter as f64 * (1. - cut_off_perc))
+        //                 * (self.start_temperature.unwrap() - self.temperature)
+        //     }
+        // } else {
+        if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
+            heating_temp
+                - (iiter as f64 / (self.niter as f64 * cut_off_perc))
+                    * (heating_temp - self.temperature)
         } else {
-            if (iiter + 1) as f64 <= self.niter as f64 * cut_off_perc {
-                heating_temp
-                    - (iiter as f64 / (self.niter as f64 * cut_off_perc))
-                        * (heating_temp - self.temperature)
-            } else {
-                self.temperature
-            }
+            self.temperature
         }
+        // }
     }
 
     fn is_acceptance_criteria_fulfilled(
