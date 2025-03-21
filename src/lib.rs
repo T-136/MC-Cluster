@@ -113,6 +113,7 @@ impl Simulation {
                     nsites,
                     &gridstructure.xsites_positions,
                     &atom_names,
+                    &gridstructure.nn,
                 );
                 let number_of_atoms: u32 = onlyocc.len() as u32;
                 (onlyocc, number_of_atoms)

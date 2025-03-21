@@ -146,6 +146,7 @@ pub fn occ_onlyocc_from_xyz(
     nsites: u32,
     xsites_positions: &Vec<[f64; 3]>,
     atom_names: &super::AtomNames,
+    nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
 ) -> HashSet<u32, FnvBuildHasher> {
     let mut occ: Vec<u8> = Vec::with_capacity(nsites as usize);
     for _ in 0..nsites {
@@ -154,6 +155,7 @@ pub fn occ_onlyocc_from_xyz(
     let mut onlyocc: HashSet<u32, FnvBuildHasher> =
         fnv::FnvHashSet::with_capacity_and_hasher(xyz.len(), Default::default());
 
+    let mut support_vec = Vec::new();
     for x in xyz.iter() {
         for site in 0..nsites {
             let dist = (x.1[0] - xsites_positions[site as usize][0]).powf(2.)
@@ -166,18 +168,19 @@ pub fn occ_onlyocc_from_xyz(
                 } else if let Some(supp) = atom_names.support.as_ref() {
                     if supp == &x.0 {
                         atom_pos[site as usize].occ = 2;
+                        support_vec.push(site)
                     }
                 }
             }
         }
     }
-    // for (i, o) in occ.iter().enumerate() {
-    //     if *o == 1_u8 {
-    //         if !onlyocc.contains(&(i as u32)) {
-    //             println!("occ: {}", i);
-    //         }
-    //     }
-    // }
+    for sup in support_vec.iter() {
+        for neighbor in nn[sup] {
+            if atom_pos[neighbor as usize].occ != 2 {
+                atom_pos[neighbor as usize].nn_support = 1;
+            }
+        }
+    }
     onlyocc
 }
 

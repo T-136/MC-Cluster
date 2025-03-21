@@ -158,7 +158,7 @@ struct StartStructure {
     atoms: Option<Vec<String>>,
 
     /// When creating a new particle using the atoms flag, write the Atom name and a vector orthogonal to the support
-    /// surface Al,1,1,1. When starting fro a xyz file only the support atom is required.
+    /// surface Al,1,1,1. When starting from a xyz file only the support atom is required.
     #[arg(short, long, value_delimiter = ',', allow_hyphen_values(true))]
     support: Option<Vec<String>>,
 }
