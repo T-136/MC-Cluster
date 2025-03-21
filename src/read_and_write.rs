@@ -8,12 +8,11 @@ use std::io::{self, BufRead};
 
 pub fn write_occ_as_xyz(
     atom_names: &super::AtomNames,
-    // trajectory: &mut Trajectory,
     save_folder: String,
     onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
-    xsites_positions: &Vec<[f64; 3]>,
+    xsites_positions: &[[f64; 3]],
     unit_cell: &[f64; 3],
-    atom_pos: &Vec<super::AtomPosition>,
+    atom_pos: &[super::AtomPosition],
 ) {
     let mut trajectory = Trajectory::open(save_folder.clone() + "/lowest_energy.xyz", 'w').unwrap();
     let mut xyz: Vec<[f64; 3]> = Vec::new();
@@ -21,7 +20,7 @@ pub fn write_occ_as_xyz(
         xyz.insert(j, xsites_positions[*ii as usize]);
     }
     let mut frame = Frame::new();
-    frame.set_cell(&UnitCell::new(unit_cell.clone()));
+    frame.set_cell(&UnitCell::new(*unit_cell));
 
     for atom in xyz.into_iter() {
         frame.add_atom(
@@ -125,53 +124,8 @@ pub fn read_nn_pair_no_intersec(
                 neighbors[1][i - 7] = l.parse::<u32>().unwrap()
             }
         }
-        nn_pair
-            // .entry()
-            // .and_modify(|map| {
-            //     map.insert(j, neighbors.clone());
-            // })
-            .insert(site as u64 + ((j as u64) << 32), neighbors);
-        // println!("{:?}", line.unwrap());
+        nn_pair.insert(site as u64 + ((j as u64) << 32), neighbors);
     }
 
-    return nn_pair;
-}
-
-pub fn read_nn_pairlists(
-    nn_pairlist_file: &str,
-) -> HashMap<u64, [u32; super::NN_PAIR_NUMBER], FnvBuildHasher> {
-    let nn_pairlist =
-        fs::File::open(nn_pairlist_file).expect("Should have been able to read the file");
-
-    let lines = io::BufReader::new(nn_pairlist);
-
-    let mut nn_pair: HashMap<u64, [u32; super::NN_PAIR_NUMBER], FnvBuildHasher> =
-        FnvHashMap::with_capacity_and_hasher(32000, Default::default());
-
-    for line in lines.lines() {
-        let r = line.unwrap();
-        let test: Vec<&str> = r.split_whitespace().clone().collect();
-        let site: u32 = std::cmp::min(
-            test[0].parse::<u32>().unwrap(),
-            test[1].parse::<u32>().unwrap(),
-        );
-        let j: u32 = std::cmp::max(
-            test[0].parse::<u32>().unwrap(),
-            test[1].parse::<u32>().unwrap(),
-        );
-        let mut neighbors: [u32; super::NN_PAIR_NUMBER] = [0; super::NN_PAIR_NUMBER];
-
-        for (i, l) in test.iter().skip(2).enumerate() {
-            neighbors[i] = l.parse::<u32>().unwrap()
-        }
-        nn_pair
-            // .entry()
-            // .and_modify(|map| {
-            //     map.insert(j, neighbors.clone());
-            // })
-            .insert(site as u64 + ((j as u64) << 32), neighbors);
-        // println!("{:?}", line.unwrap());
-    }
-
-    return nn_pair;
+    nn_pair
 }

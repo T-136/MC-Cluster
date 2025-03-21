@@ -14,8 +14,6 @@ pub struct ListDict {
 impl ListDict {
     pub fn new(nsites: u32) -> ListDict {
         let item_to_position: HashMap<u64, usize, ahash::RandomState> = HashMap::default();
-        // let item_to_position: HashMap<u64, usize, fnv::FnvBuildHasher> =
-        //     fnv::FnvHashMap::with_capacity_and_hasher(32000, Default::default());
         ListDict {
             move_to_position: item_to_position,
             moves: Vec::with_capacity((nsites * 3) as usize),
@@ -51,57 +49,12 @@ impl ListDict {
     }
 
     pub fn choose_random_item_mc(&self, rng_choose: &mut SmallRng) -> (u32, u32, Option<i64>) {
-        self.moves.choose(rng_choose).unwrap().clone()
+        *self.moves.choose(rng_choose).unwrap()
     }
 
-    pub fn choose_ramdom_move_kmc(&self, rng_choose: &mut SmallRng) -> (u32, u32, i64) {
-        let between =
-            Uniform::new_inclusive(0, self.total_energy_change.expect("no total_energy_change"));
-        let k_time_rng = between.sample(rng_choose);
-        let mut cur_energy = 0_i64;
-        let mut res: Option<(u32, u32, i64)> = None;
-        self.iter().for_each(|(from, to, energy_change)| {
-            cur_energy += energy_change.expect("no energy change in ListDict");
-            if cur_energy <= k_time_rng {
-                res = Some((*from, *to, energy_change.unwrap()))
-            }
-        });
-        panic!("no move chosen in kmc");
-    }
-
-    pub fn iter(&self) -> std::slice::Iter<'_, (u32, u32, Option<i64>)> {
+    pub fn _iter(&self) -> std::slice::Iter<'_, (u32, u32, Option<i64>)> {
         self.moves.iter()
     }
-
-    // pub fn contains(&self, move_from: u32, move_to: u32) -> bool {
-    //     self.item_to_position
-    //         .contains_key(&(move_from as u64 + ((move_to as u64) << 32)))
-    // }
-
-    // pub fn remove_by_index(&mut self, index: usize) {
-    //     self.item_to_position.remove(&self.items.swap_remove(index));
-    // }
-
-    // pub fn drain_filter(&mut self, cn: &Vec<usize>, move_from: &u32, move_to: &u32) {
-    //     let mut i = 0;
-    //     while i < self.items.len() {
-    //         let (o, u) = self.items[i];
-    //         if (cn[u as usize] == 0 || &o == move_from || &u == move_to) {
-    //             let (move_from, move_to) = self.items.remove(i);
-    //             self.item_to_position
-    //                 .remove(&(move_from as u64 + ((move_to as u64) << 32)));
-    //         } else {
-    //             i += 1;
-    //         }
-    //     }
-    // }
-    // pub fn filter(&self) {
-    //     self.items.iter().filter()
-    // }
-
-    // pub fn iter_mut(self) -> std::vec::IntoIter<(u64, u64)> {
-    //     self.items.into_iter()
-    // }
 
     pub fn _len(&self) -> usize {
         self.moves.len()

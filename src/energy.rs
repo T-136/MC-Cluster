@@ -1,11 +1,5 @@
-use rayon::array;
 use std::ops::Index;
 
-// Pt
-const M_BETA: i64 = -330;
-const M_ALPHA: i64 = 3960;
-
-// const support_e: i64 = -211;
 #[derive(Clone, Debug)]
 pub struct EnergyValues<T> {
     pub complet_energy: T,
@@ -38,8 +32,6 @@ pub fn energy_1000_calculation(
             }
         }
     }
-    // enrico_table(cn[*atom as usize])
-    // cn[*atom as usize] as i64 * M_BETA + M_ALPHA
 }
 
 pub fn energy_diff_cn<'a, T, I, O>(
@@ -86,11 +78,6 @@ where
             energy_diff_1000 += support_e;
             energy_diff_1000 += co_ads[move_to_cn - 1];
         }
-        // println!("{},{}", is_from_at_support, is_to_at_support);
-        // println!(
-        //     "e_diff: {} at_supp_form: {}, at_supp_to: {}",
-        //     energy_diff_1000, is_from_at_support, is_to_at_support
-        // );
         energy_diff_1000
     } else {
         let mut energy_diff_1000 = 0;

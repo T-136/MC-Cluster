@@ -1,19 +1,12 @@
 use chemfiles::{Frame, Trajectory};
-use clap::ArgGroup;
-use clap::Parser;
+use clap::{ArgGroup, Parser};
 use core::panic;
-use mc::energy::EnergyInput;
-use mc::energy::EnergyValues;
-use mc::CreateStructure;
-use mc::GridStructure;
-use mc::Simulation;
-use mc::Structure;
+use mc::energy::{EnergyInput, EnergyValues};
+use mc::{CreateStructure, GridStructure, Simulation, Structure};
 use std::collections::HashMap;
-use std::fs;
 use std::io::BufReader;
 use std::sync::Arc;
-use std::thread;
-use vasp_poscar::Poscar;
+use std::{fs, thread};
 
 fn atoms_input(atom_name: &str, atom_names: &mut mc::AtomNames) {
     if let Some(supp) = atom_names.support.as_ref() {
@@ -33,7 +26,7 @@ fn atoms_input(atom_name: &str, atom_names: &mut mc::AtomNames) {
 fn read_sample(input_file: &str, atom_names: &mut mc::AtomNames) -> Vec<(String, [f64; 3])> {
     if input_file.contains(".poscar") {
         todo!();
-        let newatoms = Poscar::from_path(input_file).unwrap();
+        // let newatoms = Poscar::from_path(input_file).unwrap();
         // println!("poscar naem {:?}", newatoms.group_symbols().unwrap().next());
         // let xyz = newatoms.scaled_cart_positions();
         // xyz.into_owned()
@@ -76,13 +69,7 @@ fn fmt_scient(num: &str) -> u64 {
         * base.pow(exp.parse::<u32>().expect("wrong iterations input"))
 }
 
-fn collect_energy_values<const N: usize>(
-    // input_atom: &str,
-    // support_atom: &str,
-    atom_names: &mc::AtomNames,
-    mut energy_vec: [i64; N],
-    inp: String,
-) -> EnergyValues<[i64; N]> {
+fn collect_energy_values<const N: usize>(inp: String) -> EnergyValues<[i64; N]> {
     let json = if inp.chars().next().unwrap().is_numeric() || inp.starts_with('-') {
         let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
             serde_json::from_str(&inp);
@@ -90,7 +77,6 @@ fn collect_energy_values<const N: usize>(
     } else if inp.ends_with(".json") {
         let file = fs::File::open(inp).expect("can't find energy file");
         let reader = BufReader::new(file);
-        // let res: Result<Results, serde_json::Error> = serde_json::from_reader(reader);
         let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
             serde_json::from_reader(reader);
         res
@@ -136,10 +122,10 @@ fn collect_energy_values<const N: usize>(
     //             )
     //         });
     // }
-    return EnergyValues {
-        complet_energy: energy_vec,
-        co_ads_energy: None,
-    };
+    // return EnergyValues {
+    //     complet_energy: energy_vec,
+    //     co_ads_energy: None,
+    // };
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -254,13 +240,6 @@ fn file_paths(grid_folder: String) -> (String, String, String, String) {
     )
 }
 
-fn unpack_atoms_input(atoms: Vec<String>) -> (String, u32) {
-    return (
-        atoms[0].clone(),
-        atoms[1].parse().expect("bad number of atoms"),
-    );
-}
-
 fn unpack_support_input(atoms_opt: Option<Vec<String>>) -> (Option<String>, Option<Vec<i32>>) {
     if let Some(atoms) = atoms_opt {
         if atoms.len() == 1 {
@@ -304,7 +283,10 @@ fn main() {
         Structure::StartStructure(Arc::new(xyz))
     } else if let Some(atoms) = args.start_structure.atoms {
         let (supp_atom_name, support_indices) = unpack_support_input(args.start_structure.support);
-        let (atom_name, atom_count) = unpack_atoms_input(atoms);
+        let (atom_name, atom_count) = (
+            atoms[0].clone(),
+            atoms[1].parse().expect("bad number of atoms"),
+        );
         atom_names.atom = Some(atom_name.clone());
         atom_names.support = supp_atom_name.clone();
 
@@ -340,17 +322,9 @@ fn main() {
     };
 
     let energy = if args.e_l_cn.is_some() {
-        EnergyInput::LinearCn(collect_energy_values(
-            &atom_names,
-            [0; 2],
-            args.e_l_cn.unwrap(),
-        ))
+        EnergyInput::LinearCn(collect_energy_values(args.e_l_cn.unwrap()))
     } else if args.e_cn.is_some() {
-        EnergyInput::Cn(collect_energy_values(
-            &atom_names,
-            [0; 13],
-            args.e_cn.unwrap(),
-        ))
+        EnergyInput::Cn(collect_energy_values(args.e_cn.unwrap()))
     } else {
         panic!("no energy")
     };
@@ -364,7 +338,6 @@ fn main() {
     let gridstructure = Arc::new(gridstructure);
 
     for rep in repetition[0]..repetition[1] {
-        // let input_file = input_file.clone();
         let save_folder = save_folder.clone();
         let optimization_cut_off_fraction = optimization_cut_off_fraction.clone();
         let energy = energy.clone();

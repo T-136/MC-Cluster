@@ -2,21 +2,28 @@ use fnv::FnvBuildHasher;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+fn is_in_pane(point_xyz: &[f64; 3], fixpoint: &[f64; 3], ort_vector: &[i32]) -> bool {
+    1e-7 >= fixpoint
+        .iter()
+        .zip(point_xyz)
+        .map(|(a, b)| a - b)
+        .zip(ort_vector)
+        .map(|(x, y)| x * *y as f64)
+        .sum::<f64>()
+        .abs()
+}
+
 fn create_support(
     atom_pos: &mut Vec<super::AtomPosition>,
     xsites_positions: &Vec<[f64; 3]>,
     support_indices: &[i32],
-    // support: &Support,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     iclose: u32,
 ) {
     let center_of_mass: &[f64; 3] = &xsites_positions[iclose as usize];
-    let mut nn_support = vec![0_u8; xsites_positions.len()];
     let mut support_vec = Vec::new();
-    let refpos = xsites_positions[0];
     for (i, xyz) in xsites_positions.iter().enumerate() {
-        let new_vec = elementwise_subtraction(xyz, center_of_mass);
-        if 1e-7 >= dot_product(&new_vec, support_indices).abs() {
+        if is_in_pane(xyz, center_of_mass, support_indices) {
             atom_pos[i].occ = 2;
             support_vec.push(i as u32)
         };
@@ -26,6 +33,16 @@ fn create_support(
         if atom_pos[neighbor as usize].occ == 0 {
             second_layer_fixpoint = neighbor;
         }
+    }
+    for (i, xyz) in xsites_positions.iter().enumerate() {
+        if is_in_pane(
+            xyz,
+            &xsites_positions[second_layer_fixpoint as usize],
+            support_indices,
+        ) {
+            atom_pos[i].occ = 2;
+            support_vec.push(i as u32)
+        };
     }
     for sup in support_vec.iter() {
         for neighbor in nn[sup] {
@@ -42,7 +59,6 @@ pub fn create_input_cluster(
     xsites_positions: &Vec<[f64; 3]>,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     nsites: u32,
-    // support: Option<&Support>,
     support_indices: Option<&Vec<i32>>,
 ) -> HashSet<u32, FnvBuildHasher> {
     let center_of_mass: [f64; 3] = {
@@ -182,35 +198,4 @@ pub fn occ_onlyocc_from_xyz(
         }
     }
     onlyocc
-}
-
-fn elementwise_subtraction(vec_a: &[f64], vec_b: &[f64]) -> Vec<f64> {
-    vec_a.iter().zip(vec_b).map(|(a, b)| a - b).collect()
-}
-
-fn dot_product(vec_a: &[f64], vec_b: &[i32]) -> f64 {
-    vec_a
-        .iter()
-        .zip(vec_b.iter())
-        .map(|(x, y)| x * *y as f64)
-        .sum()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn is_pos_in_pane() {
-        let center = vec![15., 15., 15.];
-        let vec_a = vec![16., 14., 15.];
-        let plane_vec = vec![1, 1, 1];
-        let new_vec = elementwise_subtraction(&vec_a, &center);
-        assert!(dot_product(&new_vec, &plane_vec) <= 1e-7);
-
-        let vec_a = vec![17., 14., 14.];
-        let plane_vec = vec![1, 1, 1];
-        let new_vec = elementwise_subtraction(&vec_a, &center);
-        assert!(dot_product(&new_vec, &plane_vec) <= 1e-7);
-    }
 }

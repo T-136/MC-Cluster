@@ -1,7 +1,5 @@
-use anyhow;
 use csv::Writer;
 use energy::EnergyInput;
-use rand;
 use rand::distributions::{Distribution, Uniform};
 use rand::prelude::*;
 use rand::rngs::SmallRng;
@@ -10,7 +8,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::sync::Arc;
-use std::{fs, println, usize};
+use std::{fs, println};
 
 pub mod energy;
 mod grid_structure;
@@ -23,7 +21,6 @@ pub use grid_structure::GridStructure;
 pub use sim::Results;
 
 const CN: usize = 12;
-const NN_PAIR_NUMBER: usize = 20;
 const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
 const AMOUNT_SECTIONS: usize = 10000;
 const SAVE_TH: u64 = 1000;
@@ -72,7 +69,6 @@ pub struct Simulation {
     heat_map_sections: Vec<Vec<u64>>,
     energy: EnergyInput,
     gridstructure: Arc<GridStructure>,
-    // support: Option<Support>,
     support_e: i64,
 }
 
@@ -81,7 +77,7 @@ fn copy_nn_in_atoms_pos(
     nn: &HashMap<u32, [u32; CN], fnv::FnvBuildHasher>,
 ) {
     for (i, atom) in atom_pos.iter_mut().enumerate() {
-        atom.nn = nn.get(&(i as u32)).unwrap().clone()
+        atom.nn = *nn.get(&(i as u32)).unwrap()
     }
 }
 
@@ -656,20 +652,16 @@ impl Simulation {
                             None
                         }
                     }),
-                    to_change
-                        .iter()
-                        // .filter(|x| self.atom_pos[**x as usize].occ == 1)
-                        .filter_map(|x| {
-                            if self.atom_pos[*x as usize].occ == 1 {
-                                Some((
-                                    self.atom_pos[*x as usize].cn_metal,
-                                    self.atom_pos[*x as usize].nn_support,
-                                ))
-                            } else {
-                                None
-                            }
-                        }),
-                    // .map(|x| (self.atom_pos.cn_metal[*x as usize], self.atom_pos.nn_support[*x as usize])),
+                    to_change.iter().filter_map(|x| {
+                        if self.atom_pos[*x as usize].occ == 1 {
+                            Some((
+                                self.atom_pos[*x as usize].cn_metal,
+                                self.atom_pos[*x as usize].nn_support,
+                            ))
+                        } else {
+                            None
+                        }
+                    }),
                     self.atom_pos[move_from as usize].cn_metal,
                     self.atom_pos[move_to as usize].cn_metal,
                     from_at_support,
@@ -762,14 +754,9 @@ impl Simulation {
     }
 
     pub fn count_empty_sites(&self) -> HashMap<String, u32> {
-        // let empty_set: HashSet<&u32> =
-        //     HashSet::from_iter(self.possible_moves.iter().map(|(_, empty, _)| empty));
         let mut empty_sites = HashSet::new();
         let mut empty_sites_distribution: HashMap<String, u32> = HashMap::new();
         for atom in self.onlyocc.iter() {
-            // if occupied != &1 {
-            //     continue;
-            // }
             for neigbor in self.atom_pos[*atom as usize].nn.iter() {
                 if self.atom_pos[*neigbor as usize].occ == 0 {
                     empty_sites.insert(neigbor);
@@ -825,7 +812,6 @@ fn no_int_nn_from_move(
 }
 
 pub fn find_simulation_with_lowest_energy(folder: String) -> anyhow::Result<()> {
-    // let mut folder_with_lowest_e: PathBuf = PathBuf::new();
     let mut lowest_e: f64 = f64::INFINITY;
 
     for _ in 0..2 {
@@ -900,9 +886,4 @@ pub struct CreateStructure {
     pub atom_count: u32,
     pub support_vector: Option<Vec<i32>>,
     pub support_atom_name: Option<String>,
-}
-
-enum FromOrTo {
-    From,
-    To,
 }
