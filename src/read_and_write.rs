@@ -130,3 +130,46 @@ pub fn read_nn_pair_no_intersec(
 
     nn_pair
 }
+
+pub fn xyz_write(
+    xsites_positions: &[[f64; 3]],
+    // atom_pos: &Vec<super::AtomPosition>,
+    atom_names: &super::AtomNames,
+    snap_shot_sections: &[Vec<u8>],
+    path: String,
+    unit_cell: &[f64; 3],
+) -> anyhow::Result<()> {
+    let mut trajectory = Trajectory::open(path, 'w')?;
+    for snapshot in snap_shot_sections {
+        let mut frame = Frame::new();
+        frame.set_cell(&UnitCell::new(*unit_cell));
+
+        for (i, atom) in snapshot.iter().enumerate() {
+            if atom == &1 {
+                frame.add_atom(
+                    &Atom::new(atom_names.atom.as_ref().unwrap().as_str()),
+                    [
+                        xsites_positions[i][0],
+                        xsites_positions[i][1],
+                        xsites_positions[i][2],
+                    ],
+                    None,
+                );
+            } else if atom == &2 {
+                frame.add_atom(
+                    &Atom::new(atom_names.support.as_ref().unwrap().as_str()),
+                    [
+                        xsites_positions[i][0],
+                        xsites_positions[i][1],
+                        xsites_positions[i][2],
+                    ],
+                    None,
+                );
+            }
+        }
+        trajectory
+            .write(&frame)
+            .unwrap_or_else(|x| eprintln!("{}", x));
+    }
+    Ok(())
+}

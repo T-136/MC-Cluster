@@ -378,24 +378,15 @@ impl Simulation {
             wtr.flush().unwrap();
         }
 
-        if self.snap_shot_sections.is_some() {
-            let mut wtr =
-                Writer::from_path(self.save_folder.clone() + "/snapshot_sections.csv").unwrap();
-            if let Some(snap_shot_sections) = &self.snap_shot_sections {
-                for heat_section in snap_shot_sections {
-                    wtr.write_record(heat_section.iter().map(|x| {
-                        if x == &1 {
-                            self.atom_names.atom.clone().unwrap()
-                        } else if x == &2 {
-                            self.atom_names.support.clone().unwrap()
-                        } else {
-                            x.to_string()
-                        }
-                    }))
-                    .unwrap();
-                }
-            }
-            wtr.flush().unwrap();
+        if let Some(snap_shot_sections) = self.snap_shot_sections.as_ref() {
+            read_and_write::xyz_write(
+                &self.gridstructure.xsites_positions,
+                &self.atom_names,
+                snap_shot_sections,
+                self.save_folder.clone() + "/snapshot_sections.xyz",
+                &self.gridstructure.unit_cell,
+            )
+            .unwrap();
         }
 
         Results {
@@ -404,7 +395,6 @@ impl Simulation {
             number_all_atoms: self.number_all_atoms,
             energy_section_list: self.energy_sections_list.clone(),
             cn_dict_sections: self.cn_dict_sections.clone(),
-            // unique_levels: self.unique_levels.clone(),
         }
     }
 
@@ -430,31 +420,6 @@ impl Simulation {
                 .for_each(|(i, v)| *v += self.cn_dict[i] as u64);
         }
 
-        // if *amount_unique_levels != 0 {
-        //     let mut cn_hash_map = HashMap::new();
-        //     for (i, v) in self.cn_dict.into_iter().enumerate() {
-        //         cn_hash_map.insert(i as u8, v);
-        //     }
-        //
-        //     if *iiter * self.optimization_cut_off_fraction[1]
-        //         >= self.niter * self.optimization_cut_off_fraction[0]
-        //     {
-        //         let cn_btree: BTreeMap<_, _> = cn_hash_map.into_iter().collect();
-        //         match self.unique_levels.entry(cn_btree) {
-        //             Entry::Occupied(mut entry) => {
-        //                 let (_, x) = entry.get_mut();
-        //                 *x += 1;
-        //             }
-        //             Entry::Vacant(entry) => {
-        //                 if *amount_unique_levels == 1 {
-        //                     eprint!("amount_unique_levels reached");
-        //                 }
-        //                 *amount_unique_levels -= 1;
-        //                 entry.insert((self.total_energy_1000 / 1000, 1));
-        //             }
-        //         }
-        //     }
-        // }
         if (iiter + 1) % section_size == 0 {
             self.energy_sections_list
                 .push(temp_energy_section_1000 as f64 / (section_size / SAVE_TH) as f64 / 1000.);
