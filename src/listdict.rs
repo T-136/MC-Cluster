@@ -1,5 +1,3 @@
-use core::panic;
-use rand::distributions::{Distribution, Uniform};
 use rand::rngs::SmallRng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
@@ -22,15 +20,12 @@ impl ListDict {
     }
 
     pub fn add_item(&mut self, move_from: u32, move_to: u32, energy_change: Option<i64>) {
-        match self
+        if let std::collections::hash_map::Entry::Vacant(e) = self
             .move_to_position
-            .entry((move_from as u64 + ((move_to as u64) << 32)))
+            .entry(move_from as u64 + ((move_to as u64) << 32))
         {
-            std::collections::hash_map::Entry::Vacant(e) => {
-                self.moves.push((move_from, move_to, energy_change));
-                e.insert(self.moves.len() - 1);
-            }
-            _ => return,
+            self.moves.push((move_from, move_to, energy_change));
+            e.insert(self.moves.len() - 1);
         }
     }
 
@@ -43,7 +38,7 @@ impl ListDict {
             if position != self.moves.len() {
                 self.moves[position] = (move_from, move_to, energy_change);
                 self.move_to_position
-                    .insert((move_from as u64 + ((move_to as u64) << 32)), position);
+                    .insert(move_from as u64 + ((move_to as u64) << 32), position);
             }
         }
     }

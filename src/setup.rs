@@ -14,8 +14,8 @@ fn is_in_pane(point_xyz: &[f64; 3], fixpoint: &[f64; 3], ort_vector: &[i32]) -> 
 }
 
 fn create_support(
-    atom_pos: &mut Vec<super::AtomPosition>,
-    xsites_positions: &Vec<[f64; 3]>,
+    atom_pos: &mut [super::AtomPosition],
+    xsites_positions: &[[f64; 3]],
     support_indices: &[i32],
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
     iclose: u32,
@@ -54,7 +54,7 @@ fn create_support(
 }
 
 pub fn create_input_cluster(
-    atom_pos: &mut Vec<super::AtomPosition>,
+    atom_pos: &mut [super::AtomPosition],
     number_of_atoms: &u32,
     xsites_positions: &Vec<[f64; 3]>,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
@@ -83,7 +83,7 @@ pub fn create_input_cluster(
                 + (center_of_mass[1] - xsite_position[1]).powf(2.)
                 + (center_of_mass[2] - xsite_position[2]).powf(2.);
             if minimum >= dist {
-                minimum = dist.clone();
+                minimum = dist;
                 index_of_center = i as u32;
             }
         }
@@ -98,15 +98,10 @@ pub fn create_input_cluster(
     let mut onlyocc: HashSet<u32, FnvBuildHasher> =
         fnv::FnvHashSet::with_capacity_and_hasher(*number_of_atoms as usize, Default::default());
 
-    // if let Some(supp) = support {
-    //     supp.support_indices
-    //         .map(|sup| create_support(atom_pos, xsites_positions, sup, nn, iclose));
-    // }
     if let Some(supp) = support_indices {
         create_support(atom_pos, xsites_positions, supp, nn, iclose);
     }
 
-    // occ.entry(&iclose).and_modify(1) = 1;
     if atom_pos[iclose as usize].occ == 0 {
         onlyocc.insert(iclose);
     } else {
@@ -125,8 +120,8 @@ pub fn create_input_cluster(
         let mut onlyocc_temp_storag: HashSet<u32> = HashSet::new();
         for site in onlyocc.iter() {
             for j in &nn[site] {
-                if !onlyocc_temp_storag.contains(&j)
-                    && !onlyocc.contains(&j)
+                if !onlyocc_temp_storag.contains(j)
+                    && !onlyocc.contains(j)
                     && atom_pos[*j as usize].occ == 0
                 {
                     onlyocc_temp_storag.insert(*j);
@@ -157,17 +152,13 @@ pub fn create_input_cluster(
 }
 
 pub fn occ_onlyocc_from_xyz(
-    atom_pos: &mut Vec<super::AtomPosition>,
+    atom_pos: &mut [super::AtomPosition],
     xyz: Arc<Vec<(String, [f64; 3])>>,
     nsites: u32,
-    xsites_positions: &Vec<[f64; 3]>,
+    xsites_positions: &[[f64; 3]],
     atom_names: &super::AtomNames,
     nn: &HashMap<u32, [u32; 12], FnvBuildHasher>,
 ) -> HashSet<u32, FnvBuildHasher> {
-    let mut occ: Vec<u8> = Vec::with_capacity(nsites as usize);
-    for _ in 0..nsites {
-        occ.push(0 as u8);
-    }
     let mut onlyocc: HashSet<u32, FnvBuildHasher> =
         fnv::FnvHashSet::with_capacity_and_hasher(xyz.len(), Default::default());
 

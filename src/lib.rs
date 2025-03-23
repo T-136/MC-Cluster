@@ -188,19 +188,6 @@ impl Simulation {
             onlyocc.len()
         );
 
-        // let simulation_folder_name = match start_temperature {
-        //     Some(start_temp) => {
-        //         std::format!(
-        //             "{}-{}K_{:E}I_{}A",
-        //             start_temp,
-        //             temperature,
-        //             niter,
-        //             onlyocc.len()
-        //         )
-        //     }
-        //     None => std::format!("{}K_{:E}I_{}A", temperature, niter, onlyocc.len()),
-        // };
-
         let mut sub_folder = save_folder_name + &simulation_folder_name;
 
         sub_folder = std::format!("{}_{}", sub_folder, repetition);
@@ -251,9 +238,7 @@ impl Simulation {
             heat_map_sections,
             energy,
             gridstructure,
-            // support,
             support_e,
-            // is_supported,
         }
     }
 

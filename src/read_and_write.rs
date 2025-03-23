@@ -64,7 +64,8 @@ pub fn read_atom_sites(input_file: &str, nsites: u32) -> Vec<[f64; 3]> {
         let r = line.unwrap();
         let list: Vec<&str> = r.split_whitespace().clone().collect();
         let temp_str_vec: [&str; 3] = [list[0], list[1], list[2]];
-        let temp_vec: [f64; 3] = temp_str_vec.map(|i| fmt_scient(i));
+        // let temp_vec: [f64; 3] = temp_str_vec.map(|i| fmt_scient(i));
+        let temp_vec: [f64; 3] = temp_str_vec.map(fmt_scient);
         xsites_positions.push(temp_vec);
     }
     xsites_positions
@@ -83,7 +84,7 @@ pub fn read_nn(pairlist_file: &str) -> HashMap<u32, [u32; super::CN], FnvBuildHa
         let r = line.unwrap();
         let list: Vec<&str> = r.split_whitespace().clone().collect();
         let mut neighbors: [u32; super::CN] = [0; super::CN];
-        let prime = list.first().clone();
+        let prime = list.first();
         for (i, l) in list.iter().skip(1).enumerate() {
             neighbors[i] = l.parse::<u32>().unwrap()
         }

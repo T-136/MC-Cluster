@@ -1,5 +1,5 @@
 use super::read_and_write;
-use chemfiles::{Atom, Frame, Trajectory, UnitCell};
+use chemfiles::{Frame, Trajectory};
 use std::collections::HashMap;
 
 pub struct GridStructure {

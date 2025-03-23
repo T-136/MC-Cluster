@@ -34,7 +34,7 @@ pub fn energy_1000_calculation(
     }
 }
 
-pub fn energy_diff_cn<'a, T, I, O>(
+pub fn energy_diff_cn<T, I, O>(
     energy: &EnergyValues<T>,
     cn_from_list: I,
     cn_to_list: O,
@@ -81,11 +81,11 @@ where
         energy_diff_1000
     } else {
         let mut energy_diff_1000 = 0;
-        for (cn_from, is_at_supp) in cn_from_list {
+        for (cn_from, _) in cn_from_list {
             energy_diff_1000 -= energy.complet_energy[cn_from];
             energy_diff_1000 += energy.complet_energy[cn_from - 1];
         }
-        for (cn_to, is_at_supp) in cn_to_list {
+        for (cn_to, _) in cn_to_list {
             energy_diff_1000 -= energy.complet_energy[cn_to];
             energy_diff_1000 += energy.complet_energy[cn_to + 1];
         }
@@ -102,23 +102,6 @@ where
     }
 }
 
-#[inline(always)]
-fn add_energy<T>(energy: &EnergyValues<T>, cn_old: usize, cn_new: usize) -> i64
-where
-    T: Index<usize, Output = i64>,
-{
-    energy.complet_energy[cn_new] - energy.complet_energy[cn_old]
-}
-
-#[inline(always)]
-fn add_energy_supp<T>(energy: &EnergyValues<T>, cn_old: usize, cn_new: usize) -> i64
-where
-    T: Index<usize, Output = i64>,
-{
-    energy.complet_energy[cn_new] + energy.co_ads_energy.as_ref().unwrap()[cn_new]
-        - (energy.complet_energy[cn_old] + energy.co_ads_energy.as_ref().unwrap()[cn_old])
-}
-
 pub fn energy_diff_l_cn(
     energy: [i64; 2],
     cn_from: usize,
@@ -127,8 +110,7 @@ pub fn energy_diff_l_cn(
     to_at_support: u8,
     support_e: i64,
 ) -> i64 {
-    let e = (2 * ((cn_to as i64) * energy[0] + energy[1])) + (support_e * to_at_support as i64)
+    (2 * ((cn_to as i64) * energy[0] + energy[1])) + (support_e * to_at_support as i64)
         - (2 * ((cn_from as i64) * energy[0] + energy[1]))
-        - (support_e * from_at_support as i64);
-    e
+        - (support_e * from_at_support as i64)
 }

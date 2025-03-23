@@ -85,6 +85,7 @@ fn collect_energy_values<const N: usize>(inp: String) -> EnergyValues<[i64; N]> 
         // fs::read_to_string(inp).expect("can't find energy file")
     };
     let mut energy: [i64; N] = [0; N];
+    #[allow(non_snake_case)]
     let mut CO_ads: [i64; N] = [0; N];
     for (i, val) in json
         .as_ref()
@@ -96,6 +97,7 @@ fn collect_energy_values<const N: usize>(inp: String) -> EnergyValues<[i64; N]> 
     {
         energy[i] = *val;
     }
+    #[allow(non_snake_case)]
     let CO_ads_opt = if let Some(it) = json.unwrap().get("ads_e_CO") {
         for (i, val) in it.iter().enumerate() {
             CO_ads[i] = *val;
@@ -104,28 +106,10 @@ fn collect_energy_values<const N: usize>(inp: String) -> EnergyValues<[i64; N]> 
     } else {
         None
     };
-    return EnergyValues {
+    EnergyValues {
         complet_energy: energy,
         co_ads_energy: CO_ads_opt,
-    };
-    // let mut string_iter = contents.trim().split(',');
-    // for x in energy_vec.iter_mut() {
-    //     *x = string_iter
-    //         .next()
-    //         .unwrap()
-    //         .trim()
-    //         .parse::<i64>()
-    //         .unwrap_or_else(|err| {
-    //             panic!(
-    //                 "iter received from input file: {:?}, err: {}",
-    //                 string_iter, err
-    //             )
-    //         });
-    // }
-    // return EnergyValues {
-    //     complet_energy: energy_vec,
-    //     co_ads_energy: None,
-    // };
+    }
 }
 
 #[derive(Parser, Debug, Clone)]
@@ -243,16 +227,16 @@ fn file_paths(grid_folder: String) -> (String, String, String, String) {
 fn unpack_support_input(atoms_opt: Option<Vec<String>>) -> (Option<String>, Option<Vec<i32>>) {
     if let Some(atoms) = atoms_opt {
         if atoms.len() == 1 {
-            return (Some(atoms[0].clone()), None);
+            (Some(atoms[0].clone()), None)
         } else if atoms.len() == 4 {
-            return (
+            (
                 Some(atoms[0].clone()),
                 Some(vec![
                     atoms[1].parse::<i32>().expect("wrong support vector"),
                     atoms[2].parse::<i32>().expect("wrong support vector"),
                     atoms[3].parse::<i32>().expect("wrong support vector"),
                 ]),
-            );
+            )
         } else {
             panic!("wrong support input")
             // panic!("wrong support input, use one of the two input options: \n number of atoms: '-a x' \n or number of atoms with miller indices: '-a x h k l' ")
