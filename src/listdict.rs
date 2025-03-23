@@ -6,7 +6,6 @@ use std::collections::HashMap;
 pub struct ListDict {
     move_to_position: HashMap<u64, usize, ahash::RandomState>,
     pub moves: Vec<(u32, u32, Option<i64>)>, // [(from, to, energy_change)]
-    total_energy_change: Option<i64>,
 }
 
 impl ListDict {
@@ -15,7 +14,6 @@ impl ListDict {
         ListDict {
             move_to_position: item_to_position,
             moves: Vec::with_capacity((nsites * 3) as usize),
-            total_energy_change: None,
         }
     }
 
