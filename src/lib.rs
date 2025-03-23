@@ -14,11 +14,11 @@ pub mod energy;
 mod grid_structure;
 mod listdict;
 mod read_and_write;
+mod results;
 mod setup;
-mod sim;
 
 pub use grid_structure::GridStructure;
-pub use sim::Results;
+pub use results::Results;
 
 const CN: usize = 12;
 const NN_PAIR_NO_INTERSEC_NUMBER: usize = 7;
@@ -248,12 +248,12 @@ impl Simulation {
         let cut_off_perc = self.optimization_cut_off_fraction[0] as f64
             / self.optimization_cut_off_fraction[1] as f64;
 
-        let mut lowest_energy_struct = sim::LowestEnergy::default();
+        let mut lowest_energy_struct = results::LowestEnergy::default();
 
         let mut temp_energy_section: i64 = 0;
         let mut temp_cn_dict_section: [u64; CN + 1] = [0; CN + 1];
 
-        let start = sim::Start::new(self.total_energy_1000, &self.cn_dict);
+        let start = results::Start::new(self.total_energy_1000, &self.cn_dict);
 
         let mut lowest_e_onlyocc: HashSet<u32, fnv::FnvBuildHasher> =
             fnv::FnvHashSet::with_capacity_and_hasher(
@@ -474,7 +474,7 @@ impl Simulation {
     fn opt_save_lowest_energy(
         &mut self,
         iiter: &u64,
-        lowest_energy_struct: &mut sim::LowestEnergy,
+        lowest_energy_struct: &mut results::LowestEnergy,
     ) -> Option<HashSet<u32, fnv::FnvBuildHasher>> {
         if lowest_energy_struct.energy > (self.total_energy_1000 as f64 / 1000.) {
             let empty_neighbor_cn = self.count_empty_sites();
