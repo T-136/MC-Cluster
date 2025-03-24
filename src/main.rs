@@ -206,7 +206,7 @@ struct Args {
 
     /// Track the simulation by taking snapshots of the cluster throughout the simulation
     #[arg(short, long, default_value_t = false)]
-    write_snap_shots: bool,
+    xyz_trajectory: bool,
 
     /// Generate a heat map
     #[arg(long, default_value_t = false)]
@@ -291,7 +291,7 @@ fn main() {
 
     let niter_str = args.iterations;
     let niter = fmt_scient(&niter_str);
-    let mut write_snap_shots: bool = args.write_snap_shots;
+    let mut write_snap_shots: bool = args.xyz_trajectory;
     let heat_map: bool = args.heat_map;
     if heat_map {
         write_snap_shots = true;
