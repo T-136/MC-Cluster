@@ -9,7 +9,7 @@ use std::io::{self, BufRead};
 pub fn write_occ_as_xyz(
     atom_names: &super::AtomNames,
     save_folder: String,
-    onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
+    onlyocc: &HashSet<u32, fnv::FnvBuildHasher>,
     xsites_positions: &[[f64; 3]],
     unit_cell: &[f64; 3],
     atom_pos: &[super::AtomPosition],

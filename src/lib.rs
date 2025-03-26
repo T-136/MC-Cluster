@@ -248,22 +248,15 @@ impl Simulation {
         let cut_off_perc = self.optimization_cut_off_fraction[0] as f64
             / self.optimization_cut_off_fraction[1] as f64;
 
-        let mut lowest_energy_struct = results::LowestEnergy::default();
+        let mut lowest_energy_struct = results::LowestEnergy::new();
 
         let mut temp_energy_section: i64 = 0;
         let mut temp_cn_dict_section: [u64; CN + 1] = [0; CN + 1];
 
         let start = results::Start::new(self.total_energy_1000, &self.cn_dict);
 
-        let mut lowest_e_onlyocc: HashSet<u32, fnv::FnvBuildHasher> =
-            fnv::FnvHashSet::with_capacity_and_hasher(
-                self.number_all_atoms as usize,
-                Default::default(),
-            );
         if self.niter == 0 {
-            if let Some(x) = self.opt_save_lowest_energy(&0, &mut lowest_energy_struct) {
-                lowest_e_onlyocc = x;
-            };
+            lowest_energy_struct.update(self, &0);
         }
         let section_size: u64 = self.niter / AMOUNT_SECTIONS as u64;
         println!("section_size: {}", section_size);
@@ -337,9 +330,7 @@ impl Simulation {
             if iiter * self.optimization_cut_off_fraction[1]
                 >= self.niter * self.optimization_cut_off_fraction[0]
             {
-                if let Some(x) = self.opt_save_lowest_energy(&iiter, &mut lowest_energy_struct) {
-                    lowest_e_onlyocc = x;
-                };
+                lowest_energy_struct.update(self, &iiter);
             }
 
             if SAVE_ENTIRE_SIM || is_recording_sections {
@@ -357,7 +348,7 @@ impl Simulation {
         read_and_write::write_occ_as_xyz(
             &self.atom_names,
             self.save_folder.clone(),
-            lowest_e_onlyocc,
+            &lowest_energy_struct.onlyocc,
             &self.gridstructure.xsites_positions,
             &self.gridstructure.unit_cell,
             &self.atom_pos,
@@ -434,35 +425,6 @@ impl Simulation {
             self.cn_dict_sections.push(section.clone())
         }
         temp_energy_section_1000
-    }
-
-    fn opt_save_lowest_energy(
-        &mut self,
-        iiter: &u64,
-        lowest_energy_struct: &mut results::LowestEnergy,
-    ) -> Option<HashSet<u32, fnv::FnvBuildHasher>> {
-        if lowest_energy_struct.energy > (self.total_energy_1000 as f64 / 1000.) {
-            let empty_neighbor_cn = self.count_empty_sites();
-            lowest_energy_struct.empty_cn = empty_neighbor_cn;
-            lowest_energy_struct.energy = self.total_energy_1000 as f64 / 1000.;
-            lowest_energy_struct.iiter = *iiter;
-
-            let mut cn_hash_map: HashMap<u8, u32> = HashMap::new();
-            for (i, v) in self.cn_dict.into_iter().enumerate() {
-                cn_hash_map.insert(i as u8, v);
-            }
-            lowest_energy_struct.cn_total = cn_hash_map;
-
-            let mut cn_hash_map_at_supp: HashMap<u8, u32> = HashMap::new();
-            for (i, v) in self.cn_dict_at_supp.into_iter().enumerate() {
-                cn_hash_map_at_supp.insert(i as u8, v);
-            }
-            lowest_energy_struct.cn_dict_at_supp = cn_hash_map_at_supp;
-
-            Some(self.onlyocc.clone())
-        } else {
-            None
-        }
     }
 
     fn calculate_current_temp(&self, iiter: u64, cut_off_perc: f64) -> f64 {
@@ -703,10 +665,13 @@ impl Simulation {
         }
     }
 
-    pub fn count_empty_sites(&self) -> HashMap<String, u32> {
+    pub fn count_empty_sites(
+        &self,
+        onlyocc: &HashSet<u32, fnv::FnvBuildHasher>,
+    ) -> HashMap<String, u32> {
         let mut empty_sites = HashSet::new();
         let mut empty_sites_distribution: HashMap<String, u32> = HashMap::new();
-        for atom in self.onlyocc.iter() {
+        for atom in onlyocc.iter() {
             for neigbor in self.atom_pos[*atom as usize].nn.iter() {
                 if self.atom_pos[*neigbor as usize].occ == 0 {
                     empty_sites.insert(neigbor);

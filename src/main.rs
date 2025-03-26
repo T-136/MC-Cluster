@@ -347,7 +347,6 @@ fn main() {
             );
             let exp = sim.run();
             sim.write_exp_file(&exp);
-            sim.count_empty_sites()
         }));
     }
     for handle in handle_vec {

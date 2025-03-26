@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize, Serializer};
 use serde_with::serde_as;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
+
+use super::Simulation;
 
 // const KB: f64 = 8.6173324e-5;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct LowestEnergy {
     pub energy: f64,
     #[serde(serialize_with = "ordered_map")]
@@ -14,16 +16,41 @@ pub struct LowestEnergy {
     #[serde(serialize_with = "ordered_map")]
     pub cn_dict_at_supp: HashMap<u8, u32>,
     pub iiter: u64,
+    #[serde(skip_serializing)]
+    pub onlyocc: HashSet<u32, fnv::FnvBuildHasher>,
 }
 
-impl Default for LowestEnergy {
-    fn default() -> LowestEnergy {
+impl LowestEnergy {
+    pub fn new() -> LowestEnergy {
         LowestEnergy {
             energy: f64::INFINITY,
-            cn_total: HashMap::new(),
-            empty_cn: HashMap::new(),
-            cn_dict_at_supp: HashMap::new(),
-            iiter: 0,
+            ..Default::default()
+        }
+    }
+
+    pub fn update(&mut self, sim: &Simulation, iiter: &u64) -> bool {
+        if self.energy > (sim.total_energy_1000 as f64 / 1000.) {
+            let empty_neighbor_cn = sim.count_empty_sites(&sim.onlyocc);
+            self.empty_cn = empty_neighbor_cn;
+            self.energy = sim.total_energy_1000 as f64 / 1000.;
+            self.iiter = *iiter;
+
+            let mut cn_hash_map: HashMap<u8, u32> = HashMap::new();
+            for (i, v) in sim.cn_dict.into_iter().enumerate() {
+                cn_hash_map.insert(i as u8, v);
+            }
+            self.cn_total = cn_hash_map;
+
+            let mut cn_hash_map_at_supp: HashMap<u8, u32> = HashMap::new();
+            for (i, v) in sim.cn_dict_at_supp.into_iter().enumerate() {
+                cn_hash_map_at_supp.insert(i as u8, v);
+            }
+            self.cn_dict_at_supp = cn_hash_map_at_supp;
+            self.onlyocc = sim.onlyocc.clone();
+
+            true
+        } else {
+            false
         }
     }
 }
