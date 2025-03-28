@@ -3,9 +3,8 @@
 This Monte Carlo (MC) simulation simulates nanoparticles at different temperatures. 
 By annealing the temperature the user can find the most stable, entropically realistic structure of a nanoparticle. 
 
-<!-- <img src="https://github.com/user-attachments/assets/848a53df-a2df-49a5-b222-5c92cb6b5b69" width="300"  /> -->
-
-![example particle](Tilman_pic.png "particle with support")
+![Image](https://github.com/user-attachments/assets/1aaf0711-65a0-447b-8a4c-2bdc36ef0774)
+<!--![example particle](Tilman_pic.png "particle with support")-->
 
 ## Overview 
 
@@ -99,5 +98,9 @@ Use "-h" or "--help" to see the available flags and how to use them.
 ```
 
 ## License
+
+Licensed under GNU Affero General Public License. 
+
+Cite This: (upcoming paper)
 
 
