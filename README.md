@@ -1,33 +1,28 @@
 # Monte Carlo nanoparticle simulation
 
-This Monte Carlo (MC) simulation simulates nanoparticles at different temperatures. 
-By annealing the temperature the user can find the most stable, entropically realistic structure of a nanoparticle. 
+This Monte-Carlo simulation simulates nanoparticles at different temperatures. 
+By applying a simulated annealing protocol, the user can find the most stable, entropically realistic structure of a nanoparticle.
 
 ![Image](https://github.com/user-attachments/assets/1aaf0711-65a0-447b-8a4c-2bdc36ef0774)
-<!--![example particle](Tilman_pic.png "particle with support")-->
+<!--![Image pdf](../particle_supp.png "particle with support")-->
 
 ## Overview 
 
 ### Simple energy model
-The energy input is a simple mapping of coordination number to eV.
-The input can be a direct mapping of every coordination number to a distinct eV.
-Alternatively a linear energy increase per coordination number increase can be used which allows for a faster simulation.
+The energy input is a simple mapping of coordination number to energy in eV. The input can be a direct mapping of every coordination number to a distinct energy. Alternatively, a linear energy increase with coordination number can be used, which speeds up the simulation.
 
 ### High performance
-By using a simple energy model the simulation can reach 10^11 iterations in one day.
-A linear coordination number to energy mapping it can reach 10^12 iterations in one day.
-This allows for the simulation of larger nanoparticles. 
+By using a simple energy model, the simulation can perform up to 10^11 iterations in one day. With a linear coordination number to energy mapping it can reach up to 10^12 iterations in one day. This allows for the simulation of larger nanoparticles. 
 
 ### Multithreaded
-You can run the simulation multiple times to ensure a more representative result, and use the divergence of the results to confirm accuracy. 
-Adding another parallel simulation has almost no effect on the required RAM.
+The code allows for as many parallel simulations as cores available on the computing node. This enables the user to obtain a statistically relevant ensemble of low-energy structures. Adding parallel simulations has negligible increase in required RAM.
 
 ### Track the Simulation using the .xyz-format
 Throughout the simulation it is possible to track the energy and save snapshots of the particle.
 Furthermore the particle with the lowest energy will be saved as an .xyz-file.
 
 ### Support
-Th simulation can simulate the effect a support can have on the particle.  
+The simulation can simulate the effect a support can have on the particle.  
 A monometallic support can be created by giving a vector that is orthogonal to the support pane.
 
 
@@ -43,7 +38,7 @@ A monometallic support can be created by giving a vector that is orthogonal to t
 ```bash
 git clone git@github.com:T-136/mc_cluster_simulation_rs.git
 ```
-\pagebreak
+<!--\pagebreak-->
 
 ### Build the binary
 
