@@ -2,7 +2,7 @@
 <!-- geometry: top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm -->
 <!-- --- -->
 
-# Monte Carlo nanoparticle simulation
+# MC-Cluster a Monte Carlo simulation for nanoparticle
 
 This Monte-Carlo simulation simulates nanoparticles at different temperatures. 
 By applying a simulated annealing protocol, the user can find the most stable, entropically realistic structure of a nanoparticle.
