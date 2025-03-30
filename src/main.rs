@@ -1,14 +1,14 @@
 use chemfiles::{Frame, Trajectory};
 use clap::{ArgGroup, Parser};
 use core::panic;
-use mc::energy::{EnergyInput, EnergyValues};
-use mc::{CreateStructure, GridStructure, Simulation, Structure};
 use std::collections::HashMap;
 use std::io::BufReader;
 use std::sync::Arc;
 use std::{fs, thread};
+use MC_Cluster::energy::{EnergyInput, EnergyValues};
+use MC_Cluster::{CreateStructure, GridStructure, Simulation, Structure};
 
-fn atoms_input(atom_name: &str, atom_names: &mut mc::AtomNames) {
+fn atoms_input(atom_name: &str, atom_names: &mut MC_Cluster::AtomNames) {
     if let Some(supp) = atom_names.support.as_ref() {
         if atom_name == supp {
             return;
@@ -23,7 +23,10 @@ fn atoms_input(atom_name: &str, atom_names: &mut mc::AtomNames) {
     }
 }
 
-fn read_sample(input_file: &str, atom_names: &mut mc::AtomNames) -> Vec<(String, [f64; 3])> {
+fn read_sample(
+    input_file: &str,
+    atom_names: &mut MC_Cluster::AtomNames,
+) -> Vec<(String, [f64; 3])> {
     if input_file.contains(".poscar") {
         todo!();
         // let newatoms = Poscar::from_path(input_file).unwrap();
@@ -250,7 +253,7 @@ fn main() {
     // enable_data_collection(true);
     println!("determined next-nearest neighbor list");
 
-    let mut atom_names = mc::AtomNames::default();
+    let mut atom_names = MC_Cluster::AtomNames::default();
     let args = Args::parse();
     let save_folder: String = args.folder;
     let temperature: f64 = args.temperature;
@@ -352,7 +355,7 @@ fn main() {
     for handle in handle_vec {
         handle.join().unwrap();
     }
-    // mc::find_simulation_with_lowest_energy(save_folder).unwrap_or_else(|err| {
+    // MC_Cluster::find_simulation_with_lowest_energy(save_folder).unwrap_or_else(|err| {
     //     println!(
     //         "{:?}",
     //         format!("deleting folders with heigh energy not successful {err}")
