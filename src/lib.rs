@@ -162,12 +162,6 @@ impl Simulation {
                     );
                 }
             };
-            println!(
-                "at_supp: {} total_e: {} cn: {}",
-                atom_pos[*o as usize].nn_support,
-                total_energy_1000 - temp_total_e,
-                atom_pos[*o as usize].cn_metal
-            );
 
             for u in &gridstructure.nn[o] {
                 if atom_pos[*u as usize].occ == 0 {

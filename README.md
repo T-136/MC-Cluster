@@ -53,7 +53,7 @@ After the build step is complete the compiled program can be found in your proje
 ### Run the simulation
 
 ```bash
-./target/release/MC-Cluster -a Pt,1000  --support Al,1,1,1  -t 1000 -i 1e7 -r 0-1  --e-cn ./cn_input_example.json -o 9/10 -g ./303030-grid --support-e 0 --xyz-trajectory
+./target/release/MC-Cluster -a Pt,1000  --support Al,1,1,1  -t 1000 -i 1e7 -r 0-1  --e-cn ./example_data/cn_input_example.json -o 9/10 -g ./example_data/303030-grid --support-e 0 --xyz-trajectory
 ```
 
 Use "-h" or "--help" to see the available flags and how to use them. 
