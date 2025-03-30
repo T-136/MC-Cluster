@@ -1,10 +1,14 @@
+<!-- --- -->
+<!-- geometry: top=2.5cm, bottom=2.5cm, left=2.5cm, right=2.5cm -->
+<!-- --- -->
+
 # Monte Carlo nanoparticle simulation
 
 This Monte-Carlo simulation simulates nanoparticles at different temperatures. 
 By applying a simulated annealing protocol, the user can find the most stable, entropically realistic structure of a nanoparticle.
 
 ![Image](https://github.com/user-attachments/assets/1aaf0711-65a0-447b-8a4c-2bdc36ef0774)
-<!--![Image pdf](../particle_supp.png "particle with support")-->
+<!-- ![Image pdf](../particle_supp.png "particle with support") -->
 
 ## Overview 
 
@@ -38,8 +42,6 @@ A monometallic support can be created by giving a vector that is orthogonal to t
 ```bash
 git clone git@github.com:T-136/mc_cluster_simulation_rs.git
 ```
-<!--\pagebreak-->
-
 ### Build the binary
 
 Build the program with:
