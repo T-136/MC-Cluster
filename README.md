@@ -40,7 +40,7 @@ A monometallic support can be created by giving a vector that is orthogonal to t
 
 ### Install from git 
 ```bash
-git clone git@github.com:T-136/mc_cluster_simulation_rs.git
+git clone git@github.com:T-136/MC-Cluster.git
 ```
 ### Build the binary
 
