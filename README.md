@@ -84,8 +84,8 @@ Use "-h" or "--help" to see the available flags and how to use them.
           How many times the same simulation is run. Multiple runs allow for convergence tests. The number will be part of the simulation folder name. After running `-r 0-1`, you can run `-r 1-2` and the previous simulation will not be overwritten [default: 0 1]
   -g, --grid-folder <GRID_FOLDER>
           Folder containing the setup files like neighbor sites. It can be created using the Python script `create_sites.py` [default: ../303030-pair]
-  -x, --xyz-trajectory
-          Track the simulation by taking snapshots of the cluster throughout the simulation
+  -x, --xyz-trajectory <XYZ_TRAJECTORY>
+          Set how many snapshots are saved in each simulation. Snapshots are spread out equally throughout the simulation
       --heat-map
           Generate a heat map
   -h, --help
