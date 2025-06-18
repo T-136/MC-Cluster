@@ -73,20 +73,22 @@ fn fmt_scient(num: &str) -> u64 {
 }
 
 fn collect_energy_values<const N: usize>(inp: String) -> EnergyValues<[i64; N]> {
-    let json = if inp.chars().next().unwrap().is_numeric() || inp.starts_with('-') {
-        let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
-            serde_json::from_str(&inp);
-        res
-    } else if inp.ends_with(".json") {
-        let file = fs::File::open(inp).expect("can't find energy file");
-        let reader = BufReader::new(file);
-        let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
-            serde_json::from_reader(reader);
-        res
-    } else {
-        panic!("energy input is neither JSON nor a file path");
-        // fs::read_to_string(inp).expect("can't find energy file")
-    };
+    let json =
+        if inp.chars().next().unwrap().is_numeric() || inp.starts_with('-') || inp.starts_with('{')
+        {
+            let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
+                serde_json::from_str(&inp);
+            res
+        } else if inp.ends_with(".json") {
+            let file = fs::File::open(inp).expect("can't find energy file");
+            let reader = BufReader::new(file);
+            let res: Result<HashMap<String, Vec<i64>, fnv::FnvBuildHasher>, serde_json::Error> =
+                serde_json::from_reader(reader);
+            res
+        } else {
+            panic!("energy input is neither JSON nor a file path");
+            // fs::read_to_string(inp).expect("can't find energy file")
+        };
     let mut energy: [i64; N] = [0; N];
     #[allow(non_snake_case)]
     let mut CO_ads: [i64; N] = [0; N];
