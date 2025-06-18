@@ -64,6 +64,7 @@ pub struct Simulation {
     cn_dict_sections: Vec<HashMap<u8, f64>>,
     energy_sections_list: Vec<f64>,
     optimization_cut_off_fraction: Vec<u64>,
+    snap_shot_count: u32,
     heat_map: Option<Vec<u64>>,
     snap_shot_sections: Option<Vec<Vec<u8>>>,
     heat_map_sections: Vec<Vec<u64>>,
@@ -89,7 +90,7 @@ impl Simulation {
         temperature: f64,
         start_temperature: f64,
         save_folder_name: String,
-        write_snap_shots: bool,
+        write_snap_shots: Option<u32>,
         is_heat_map: bool,
         repetition: usize,
         optimization_cut_off_fraction: Vec<u64>,
@@ -196,7 +197,7 @@ impl Simulation {
         let cn_dict_sections = Vec::with_capacity(AMOUNT_SECTIONS);
         let energy_sections_list = Vec::with_capacity(AMOUNT_SECTIONS);
 
-        let snap_shot_sections: Option<Vec<Vec<u8>>> = if write_snap_shots {
+        let snap_shot_sections: Option<Vec<Vec<u8>>> = if write_snap_shots.is_some() {
             Some(Vec::new())
         } else {
             None
@@ -227,6 +228,7 @@ impl Simulation {
             cn_dict_sections,
             energy_sections_list,
             optimization_cut_off_fraction,
+            snap_shot_count: write_snap_shots.unwrap_or_default(),
             snap_shot_sections,
             heat_map,
             heat_map_sections,
@@ -606,10 +608,10 @@ impl Simulation {
     }
 
     fn cond_snap_and_heat_map(&mut self, iiter: &u64) {
-        const NUMBER_HEAT_MAP_SECTIONS: u64 = 200;
+        // const NUMBER_HEAT_MAP_SECTIONS: u64 = 200;
 
         if let Some(snap_shot_sections) = &mut self.snap_shot_sections {
-            if (iiter + 1) % (self.niter / NUMBER_HEAT_MAP_SECTIONS) == 0 {
+            if (iiter + 1) % (self.niter / self.snap_shot_count as u64) == 0 {
                 if iiter == &0 {
                     return;
                 }
@@ -623,7 +625,7 @@ impl Simulation {
         }
 
         if let Some(heat_map) = &mut self.heat_map {
-            if (iiter + 1) % (self.niter / NUMBER_HEAT_MAP_SECTIONS) == 0 {
+            if (iiter + 1) % (self.niter / self.snap_shot_count as u64) == 0 {
                 if iiter == &0 {
                     return;
                 }

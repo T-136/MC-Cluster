@@ -209,9 +209,10 @@ struct Args {
     #[arg(short, long, default_value_t = String::from("../303030-pair"))]
     grid_folder: String,
 
-    /// Track the simulation by taking snapshots of the cluster throughout the simulation
-    #[arg(short, long, default_value_t = false)]
-    xyz_trajectory: bool,
+    #[arg(short, long)]
+    /// Set how many snapshots are saved in each simulation.
+    /// Snapshots are spread out equally throughout the simulation.
+    xyz_trajectory: Option<u32>,
 
     /// Generate a heat map
     #[arg(long, default_value_t = false)]
@@ -296,10 +297,10 @@ fn main() {
 
     let niter_str = args.iterations;
     let niter = fmt_scient(&niter_str);
-    let mut write_snap_shots: bool = args.xyz_trajectory;
+    let mut write_snap_shots = args.xyz_trajectory;
     let heat_map: bool = args.heat_map;
-    if heat_map {
-        write_snap_shots = true;
+    if heat_map && write_snap_shots.is_none() {
+        panic!("heatmap without snapshots");
     }
     let optimization_cut_off_fraction: Vec<u64> = args.optimization_cut_off_fraction;
     let repetition = args.repetition;
