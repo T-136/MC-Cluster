@@ -5,6 +5,9 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[patch.crates-io]
+chemfiles = { git = "https://github.com/T-136/chemfiles.rs.git" }
+
 [dependencies]
 ahash = "0.8.3"
 anyhow = "1.0.70"
