@@ -98,6 +98,6 @@ Use "-h" or "--help" to see the available flags and how to use them.
 
 Licensed under GNU Affero General Public License. 
 
-Cite This: (upcoming paper)
+Cite This: https://pubs.acs.org/doi/10.1021/acs.jpcc.5c02777
 
 
